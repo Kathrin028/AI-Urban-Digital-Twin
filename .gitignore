@@ -151,4 +151,8 @@ backend_old/
 *.onnx
 
 # YOLO training outputs
+runs/backend/ml_data/
+
 runs/
+# ML dataset
+backend/ml_data/
