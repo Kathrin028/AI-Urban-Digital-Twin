@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*$py.clas# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ML Data and Runs
+ml_data/yolo/source/
+ml_data/yolo/dataset/
+ml_runs/
+models/detection/*.pt
+models/priority/*.joblib
+!ml_data/yolo/data.yaml
+!ml_data/yolo/data.yaml.example
+!ml_data/yolo/CLASS_MAPPING.md
+!ml_data/yolo/ANNOTATION_GUIDE.md
+!ml_data/yolo/images/train/.gitkeep
+
+# Uploads
+uploads/complaints/*
+!uploads/complaints/.gitkeep

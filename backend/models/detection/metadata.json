@@ -1,0 +1,75 @@
+{
+    "model_version": "urbanmind_yolov1",
+    "training_date": "2026-08-01T13:51:35.129324Z",
+    "dataset_size": 1840,
+    "classes": {
+        "0": "Garbage",
+        "1": "Pothole",
+        "2": "Water Leakage (Empty)",
+        "3": "Road Damage"
+    },
+    "metrics": {
+        "precision": 0.5309097185931088,
+        "recall": 0.05908669286186769,
+        "mAP50": 0.0658832895563755,
+        "mAP50-95": 0.023724870589492155,
+        "f1": 0.10633861111979151
+    },
+    "environment": {
+        "ultralytics_version": "8.4.107",
+        "torch_version": "2.13.0+cpu",
+        "cuda_available": false
+    },
+    "inference_sample": [
+        {
+            "image": "rdd_India_000028.jpg",
+            "inference_time_ms": 46.65231704711914,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000078.jpg",
+            "inference_time_ms": 30.419349670410156,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000115.jpg",
+            "inference_time_ms": 44.57283020019531,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000268.jpg",
+            "inference_time_ms": 30.79533576965332,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000504.jpg",
+            "inference_time_ms": 34.81936454772949,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000563.jpg",
+            "inference_time_ms": 35.2168083190918,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000589.jpg",
+            "inference_time_ms": 30.80010414123535,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_000923.jpg",
+            "inference_time_ms": 33.1425666809082,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_001305.jpg",
+            "inference_time_ms": 41.54491424560547,
+            "detections": []
+        },
+        {
+            "image": "rdd_India_001311.jpg",
+            "inference_time_ms": 45.41659355163574,
+            "detections": []
+        }
+    ]
+}
