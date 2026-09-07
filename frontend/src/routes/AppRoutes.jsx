@@ -10,10 +10,13 @@ const Login = React.lazy(() => import('../pages/Login'));
 const Register = React.lazy(() => import('../pages/Register'));
 const CitizenDashboard = React.lazy(() => import('../pages/CitizenDashboard'));
 const AdminDashboard = React.lazy(() => import('../pages/AdminDashboard'));
+const AdminDepartments = React.lazy(() => import('../pages/AdminDepartments'));
 const ReportComplaint = React.lazy(() => import('../pages/ReportComplaint'));
 const TrackComplaint = React.lazy(() => import('../pages/TrackComplaint'));
 const ComplaintDetails = React.lazy(() => import('../pages/ComplaintDetails'));
 const AdminComplaintDetails = React.lazy(() => import('../pages/AdminComplaintDetails'));
+const DepartmentDashboard = React.lazy(() => import('../pages/DepartmentDashboard'));
+const DepartmentComplaintDetails = React.lazy(() => import('../pages/DepartmentComplaintDetails'));
 const MapView = React.lazy(() => import('../pages/MapView'));
 const Profile = React.lazy(() => import('../pages/Profile'));
 const Settings = React.lazy(() => import('../pages/Settings'));
@@ -69,10 +72,37 @@ function AppRoutes() {
           />
           
           <Route
+            path="/admin/departments"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDepartments />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
             path="/admin/complaints/:id"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminComplaintDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/department/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['department']}>
+                <DepartmentDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/department/complaints/:id"
+            element={
+              <ProtectedRoute allowedRoles={['department']}>
+                <DepartmentComplaintDetails />
               </ProtectedRoute>
             }
           />

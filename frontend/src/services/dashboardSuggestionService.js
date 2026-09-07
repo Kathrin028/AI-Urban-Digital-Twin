@@ -7,8 +7,8 @@ export const generateDashboardSuggestions = (complaints) => {
   if (pendingCount > 0) {
     suggestions.push({
       id: 'pending-warning',
-      type: pendingCount > 5 ? 'critical' : 'warning',
-      text: `${pendingCount} complaints are currently pending. Prioritize review.`
+      type: 'warning',
+      text: `You have ${pendingCount} pending complaint${pendingCount !== 1 ? 's' : ''}.`
     });
   }
 
@@ -17,7 +17,17 @@ export const generateDashboardSuggestions = (complaints) => {
     suggestions.push({
       id: 'high-priority',
       type: 'critical',
-      text: `${highPriorityCount} high-priority issues require immediate attention.`
+      text: `You have ${highPriorityCount} high-priority complaint${highPriorityCount !== 1 ? 's' : ''}.`
+    });
+  }
+
+  const inProgressComplaints = complaints.filter(c => c.status === 'In Progress');
+  if (inProgressComplaints.length > 0) {
+    // Just show the first one as an example
+    suggestions.push({
+      id: 'in-progress-info',
+      type: 'info',
+      text: `Your complaint #${inProgressComplaints[0].id ? inProgressComplaints[0].id.substring(0,8).toUpperCase() : 'UNKNOWN'} is currently In Progress.`
     });
   }
 
@@ -26,7 +36,7 @@ export const generateDashboardSuggestions = (complaints) => {
     suggestions.push({
       id: 'resolved-info',
       type: 'success',
-      text: `${resolvedCount} complaints have been successfully resolved.`
+      text: `You have ${resolvedCount} resolved complaint${resolvedCount !== 1 ? 's' : ''}.`
     });
   }
 
@@ -34,7 +44,7 @@ export const generateDashboardSuggestions = (complaints) => {
      suggestions.push({
       id: 'general-info',
       type: 'info',
-      text: `Monitor incoming complaints to ensure timely resolution.`
+      text: `Thank you for contributing to your city.`
     });
   }
 

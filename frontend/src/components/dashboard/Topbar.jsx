@@ -44,7 +44,9 @@ export default function Topbar({ toggleMobileMenu }) {
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end hidden sm:flex">
             <span className="text-[14px] font-semibold text-slate-800 leading-tight">{user?.name || "User"}</span>
-            <span className="text-[12px] font-medium text-slate-500">{user?.role === 'admin' ? 'City Official' : 'Citizen'}</span>
+            <span className="text-[12px] font-medium text-slate-500">
+              {user?.role === 'admin' ? 'City Official' : user?.role === 'department' ? (user?.department || 'Department') : 'Citizen'}
+            </span>
           </div>
           <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-lg shadow-inner uppercase">
             {user?.name?.[0] || user?.email?.[0] || "?"}

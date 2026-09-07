@@ -2,9 +2,11 @@ import { Link } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
 import { updateComplaintStatus } from "../../services/complaintService";
 import { useNotifications } from "../../contexts/NotificationContext";
+import { useAuth } from "../../hooks/useAuth";
 
-export default function ComplaintTable({ complaints, onStatusChange }) {
+export default function ComplaintTable({ complaints, onStatusChange, basePath = "/admin/complaints" }) {
   const { addNotification } = useNotifications();
+  const { user } = useAuth();
 
   const handleStatusChange = (id, newStatus) => {
     updateComplaintStatus(id, newStatus)
@@ -44,8 +46,8 @@ export default function ComplaintTable({ complaints, onStatusChange }) {
             <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
               <td className="px-8 py-5">
                 <div className="font-bold text-indigo-900 mb-1 uppercase tracking-tight text-[13px]">{c.category.toUpperCase()} ISSUE CLUSTER</div>
-                <div className="text-[12px] text-slate-500 font-semibold">Primary Issue: <span className="text-slate-700">#{c.id.substring(0, 8)}</span></div>
-                <div className="text-[11px] text-slate-400 mt-1">{c.created_at ? new Date(c.created_at).toLocaleDateString() : "N/A"}</div>
+                <div className="text-[12px] text-slate-500 font-semibold"><span className="text-slate-700">Complaint #{c.id.substring(0, 8).toUpperCase()}</span></div>
+                <div className="text-[11px] text-slate-400 mt-1">Reported: {c.created_at ? new Date(c.created_at).toLocaleDateString() : "N/A"}</div>
               </td>
               <td className="px-8 py-5 max-w-[240px]">
                 <div className="font-semibold text-slate-800 text-[13px] truncate">{c.location?.address || "Unknown Location"}</div>
@@ -62,17 +64,22 @@ export default function ComplaintTable({ complaints, onStatusChange }) {
                 <div className="text-[11px] font-semibold text-slate-500 mt-1 uppercase tracking-wider">EST: {c.estimated_resolution || "5-7 Days"}</div>
               </td>
               <td className="px-8 py-5">
-                <div className="font-bold text-[12px]">
-                  {c.evidence_verification_status === 'VERIFIED' ? <span className="text-emerald-600">VERIFIED</span> : 
-                   c.evidence_verification_status === 'UNVERIFIED' ? <span className="text-slate-500">UNVERIFIED</span> : 
-                   <span className="text-amber-600">{c.evidence_verification_status}</span>}
-                </div>
+                  <div className="font-bold text-[12px]">
+                    {c.evidence_verification_status === 'VERIFIED' ? <span className="text-emerald-600">Verified</span> : 
+                     c.evidence_verification_status === 'UNVERIFIED' ? <span className="text-rose-600">Unverified</span> : 
+                     c.evidence_verification_status === 'NOT_ANALYZED' ? <span className="text-slate-400">Not Analyzed</span> :
+                     <span className="text-slate-500">{c.evidence_verification_status ? String(c.evidence_verification_status).replace('_', ' ') : 'Pending'}</span>}
+                  </div>
                 {c.aiPrediction?.confidence ? (
                   <div className="text-[11px] font-medium text-slate-500 mt-1">Conf: {typeof c.aiPrediction.confidence === 'number' ? `${(c.aiPrediction.confidence * 100).toFixed(0)}%` : c.aiPrediction.confidence}</div>
                 ) : null}
               </td>
               <td className="px-8 py-5 whitespace-nowrap">
                 <StatusBadge status={c.status} />
+                {c.updated_at && <div className="mt-1 text-[11px] font-medium text-slate-500">Updated: {new Date(c.updated_at).toLocaleDateString()}</div>}
+                <div className={`mt-2 text-[11px] font-bold uppercase tracking-wider ${c.assigned_department ? 'text-blue-600' : 'text-slate-400'}`}>
+                  {c.assigned_department_name || (c.assigned_department ? (user?.role === 'department' ? user.department : "Assigned") : "Unassigned")}
+                </div>
               </td>
               <td className="px-8 py-5 whitespace-nowrap flex items-center justify-end gap-3 h-[88px]">
                 <select
@@ -85,7 +92,7 @@ export default function ComplaintTable({ complaints, onStatusChange }) {
                   <option value="Resolved">Resolved</option>
                 </select>
                 <Link
-                  to={`/admin/complaints/${c.id}`}
+                  to={`${basePath}/${c.id}`}
                   className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[12px] font-bold rounded-lg hover:bg-indigo-100 transition whitespace-nowrap"
                 >
                   View Issue &rarr;

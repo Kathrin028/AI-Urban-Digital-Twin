@@ -6,8 +6,8 @@ import uuid
 from pathlib import Path
 import os
 from app.database.connection import db_instance
-from app.schemas.complaint import ComplaintCreate, ComplaintResponse, ComplaintUpdate, DuplicateCheckRequest
-from app.core.dependencies import get_current_user, get_current_active_admin
+from app.schemas.complaint import ComplaintCreate, ComplaintResponse, ComplaintUpdate, ComplaintAssign, DuplicateCheckRequest, ProgressNoteCreate
+from app.core.dependencies import get_current_user, get_current_active_admin, get_current_department_user
 
 router = APIRouter()
 
@@ -216,7 +216,20 @@ async def get_complaint(complaint_id: str, current_user: dict = Depends(get_curr
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
         
-    if current_user["role"] != "admin" and complaint["user_id"] != str(current_user["id"]):
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
+        
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to view this complaint")
+    elif current_user.get("role") != "admin" and complaint.get("user_id") != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Not authorized to view this complaint")
         
     return serialize_complaint(complaint)
@@ -232,6 +245,7 @@ async def get_all_complaints(
     search: Optional[str] = None,
     primary_only: Optional[bool] = False,
     duplicate_of: Optional[str] = None,
+    assignment: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
@@ -244,6 +258,16 @@ async def get_all_complaints(
         query["is_primary"] = {"$ne": False}
     if duplicate_of:
         query["duplicate_of"] = duplicate_of
+    if assignment == "assigned":
+        query["assigned_department"] = {"$ne": None}
+    elif assignment == "unassigned":
+        query["assigned_department"] = None
+
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        query["assigned_department"] = dept_id_str
     if priority:
         # Since priority might be in 'aiPrediction.priority' or 'priority', we can check both
         query["$or"] = [
@@ -252,18 +276,21 @@ async def get_all_complaints(
         ]
         
     if search:
-        # safely escape search term for regex
-        escaped_search = re.escape(search)
+        # Strip "complaint #" or "#" for natural id searching
+        clean_search = re.sub(r'(?i)^complaint\s*#?\s*', '', search).strip()
+        clean_search = clean_search.lstrip('#').strip()
+        escaped_search = re.escape(clean_search)
         regex_pattern = {"$regex": escaped_search, "$options": "i"}
         
         search_conditions = [
             {"category": regex_pattern},
             {"description": regex_pattern},
-            {"user_id": regex_pattern}
+            {"user_id": regex_pattern},
+            {"$expr": {"$regexMatch": {"input": {"$toString": "$_id"}, "regex": escaped_search, "options": "i"}}}
         ]
         
-        if ObjectId.is_valid(search):
-            search_conditions.append({"_id": ObjectId(search)})
+        if ObjectId.is_valid(clean_search):
+            search_conditions.append({"_id": ObjectId(clean_search)})
             
         if "$or" in query:
             query = {"$and": [query, {"$or": search_conditions}]}
@@ -275,7 +302,7 @@ async def get_all_complaints(
     return [serialize_complaint(c) for c in complaints]
 
 @router.patch("/{complaint_id}/status", response_model=ComplaintResponse)
-async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdate, current_admin: dict = Depends(get_current_active_admin)):
+async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdate, current_user: dict = Depends(get_current_department_user)):
     if not ObjectId.is_valid(complaint_id):
         raise HTTPException(status_code=400, detail="Invalid complaint ID format")
         
@@ -286,6 +313,13 @@ async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdat
     complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
+        
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
         
     current_status = complaint.get("status", "Pending")
     new_status = update_data.status
@@ -306,8 +340,8 @@ async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdat
     new_history_entry = {
         "status": new_status,
         "changed_at": now.isoformat(),
-        "changed_by": str(current_admin["id"]),
-        "changed_by_role": "admin"
+        "changed_by": str(current_user["id"]),
+        "changed_by_role": current_user.get("role", "admin")
     }
     
     result = await db_instance.db.complaints.update_one(
@@ -333,6 +367,13 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
     complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
+        
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
         
     if current_user["role"] != "admin" and complaint["user_id"] != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Not authorized to update this complaint's evidence")
@@ -474,4 +515,135 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
     )
     
     updated_complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
+    return serialize_complaint(updated_complaint)
+@router.patch("/{complaint_id}/assign", response_model=ComplaintResponse)
+async def assign_complaint(complaint_id: str, assign_data: ComplaintAssign, current_admin: dict = Depends(get_current_active_admin)):
+    if not ObjectId.is_valid(complaint_id):
+        raise HTTPException(status_code=400, detail="Invalid complaint ID format")
+    if not ObjectId.is_valid(assign_data.department_id):
+        raise HTTPException(status_code=400, detail="Invalid department ID format")
+
+    complaint_obj_id = ObjectId(complaint_id)
+    dept_obj_id = ObjectId(assign_data.department_id)
+
+    # Verify complaint
+    complaint = await db_instance.db.complaints.find_one({"_id": complaint_obj_id})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    # Verify department
+    department = await db_instance.db.departments.find_one({"_id": dept_obj_id})
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+    if not department.get("is_active"):
+        raise HTTPException(status_code=400, detail="Cannot assign to an inactive department")
+
+    now = datetime.utcnow()
+    update_fields = {
+        "assigned_department": str(dept_obj_id),
+        "assigned_department_name": department.get("name"),
+        "assigned_at": now,
+        "assigned_by": current_admin.get("id"),
+        "updated_at": now
+    }
+
+    await db_instance.db.complaints.update_one(
+        {"_id": complaint_obj_id},
+        {"$set": update_fields}
+    )
+
+    updated_complaint = await db_instance.db.complaints.find_one({"_id": complaint_obj_id})
+    return serialize_complaint(updated_complaint)
+
+
+@router.post("/{complaint_id}/progress-notes", response_model=ComplaintResponse)
+async def add_progress_note(complaint_id: str, note_data: ProgressNoteCreate, current_user: dict = Depends(get_current_department_user)):
+    if not ObjectId.is_valid(complaint_id):
+        raise HTTPException(status_code=400, detail="Invalid complaint ID format")
+        
+    complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+        
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to add notes to this complaint")
+            
+    note_id = str(uuid.uuid4())
+    new_note = {
+        "id": note_id,
+        "note": note_data.note.strip(),
+        "created_at": datetime.utcnow(),
+        "created_by": str(current_user["id"]),
+        "created_by_name": current_user.get("name", "Unknown"),
+        "department": current_user.get("department", "Admin")
+    }
+    
+    updated_complaint = await db_instance.db.complaints.find_one_and_update(
+        {"_id": ObjectId(complaint_id)},
+        {"$push": {"progress_notes": new_note}},
+        return_document=True
+    )
+    return serialize_complaint(updated_complaint)
+
+@router.post("/{complaint_id}/field-evidence", response_model=ComplaintResponse)
+async def upload_field_evidence(complaint_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_department_user)):
+    if not ObjectId.is_valid(complaint_id):
+        raise HTTPException(status_code=400, detail="Invalid complaint ID format")
+        
+    complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+        
+    if current_user.get("role") == "department":
+        dept_name = current_user.get("department")
+        dept = await db_instance.db.departments.find_one({"name": dept_name})
+        dept_id_str = str(dept["_id"]) if dept else "not-found"
+        if complaint.get("assigned_department") != dept_id_str:
+            raise HTTPException(status_code=403, detail="Not authorized to upload evidence to this complaint")
+            
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Unsupported image format")
+        
+    file.file.seek(0, 2)
+    if file.file.tell() > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large")
+    file.file.seek(0)
+    
+    ext = file.content_type.split("/")[-1]
+    if ext == "jpeg":
+        ext = "jpg"
+
+    safe_filename = f"field_{complaint_id}_{uuid.uuid4().hex}.{ext}"
+    uploads_dir = Path(__file__).parent.parent.parent / "uploads" / "complaints"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = uploads_dir / safe_filename
+    
+    with open(file_path, "wb") as buffer:
+        while chunk := file.file.read(8192):
+            buffer.write(chunk)
+            
+    evidence_id = str(uuid.uuid4())
+    file_url = f"/uploads/complaints/{safe_filename}"
+    
+    new_evidence = {
+        "id": evidence_id,
+        "file_url": file_url,
+        "file_name": file.filename,
+        "uploaded_at": datetime.utcnow(),
+        "uploaded_by": str(current_user["id"]),
+        "uploaded_by_name": current_user.get("name", "Unknown"),
+        "department": current_user.get("department", "Admin")
+    }
+    
+    updated_complaint = await db_instance.db.complaints.find_one_and_update(
+        {"_id": ObjectId(complaint_id)},
+        {"$push": {"field_evidence": new_evidence}},
+        return_document=True
+    )
     return serialize_complaint(updated_complaint)

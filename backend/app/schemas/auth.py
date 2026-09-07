@@ -8,6 +8,8 @@ class UserRegister(BaseModel):
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
     city: Optional[str] = None
+    role: Optional[str] = "citizen"
+    department: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -20,6 +22,7 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     city: Optional[str] = None
     role: str
+    department: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

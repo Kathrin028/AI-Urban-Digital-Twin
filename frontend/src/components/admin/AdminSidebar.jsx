@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   MapPinned,
+  Building2,
   LogOut,
   X
 } from "lucide-react";
@@ -12,6 +13,11 @@ const menu = [
     title: "Dashboard",
     icon: LayoutDashboard,
     path: "/admin",
+  },
+  {
+    title: "Departments",
+    icon: Building2,
+    path: "/admin/departments",
   },
   {
     title: "Hotspot Map",

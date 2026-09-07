@@ -35,9 +35,12 @@ export default function MapView() {
       }));
   }, [allComplaints]);
 
+  const basePath = isAdmin ? '/admin/complaints' : '/complaints';
+
   return (
     <Layout>
       <div className="flex h-full flex-col">
+        {/* Header */}
         <div className="mb-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -54,6 +57,7 @@ export default function MapView() {
             complaints={standardizedComplaints} 
             hotspots={adminHotspotsData} 
             isAdmin={isAdmin}
+            basePath={basePath}
           />
         </div>
       </div>

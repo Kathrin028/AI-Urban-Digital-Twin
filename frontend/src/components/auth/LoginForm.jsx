@@ -31,6 +31,8 @@ export default function LoginForm() {
       const user = await login({ email, password });
       if (user.role === 'admin') {
         navigate("/admin", { replace: true });
+      } else if (user.role === 'department') {
+        navigate("/department/dashboard", { replace: true });
       } else {
         navigate("/citizen", { replace: true });
       }
@@ -109,6 +111,10 @@ export default function LoginForm() {
         <div className="flex justify-between items-center">
           <span className="font-semibold">Admin Demo:</span>
           <span className="font-mono bg-blue-100 px-2.5 py-1 rounded-md text-[13px] font-medium">admin@urbanmind.ai</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="font-semibold">Dept Demo:</span>
+          <span className="font-mono bg-blue-100 px-2.5 py-1 rounded-md text-[13px] font-medium">dept@urbanmind.ai</span>
         </div>
       </div>
 

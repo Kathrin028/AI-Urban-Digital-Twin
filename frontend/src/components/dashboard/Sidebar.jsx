@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   FilePlus2,
   ClipboardList,
-  MapPinned,
   User,
   Settings,
   LogOut,
@@ -26,11 +25,6 @@ const menu = [
     title: "My Complaints",
     icon: ClipboardList,
     path: "/track",
-  },
-  {
-    title: "Hotspot Map",
-    icon: MapPinned,
-    path: "/map",
   },
   {
     title: "Profile",

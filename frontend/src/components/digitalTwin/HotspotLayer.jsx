@@ -30,7 +30,7 @@ const HotspotLayer = ({ hotspots }) => {
       const popupContent = `
         <div style="font-family: sans-serif; min-width: 200px; padding: 2px;">
           <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: bold; color: #0f172a; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid ${fillColor}40; padding-bottom: 8px;">
-            🔥 K-Means Cluster ${hs.cluster_id}
+            📍 AI Hotspot Area
           </h3>
           <div style="display: grid; gap: 6px; font-size: 12px;">
             <div style="display: flex; justify-content: space-between;">
@@ -54,22 +54,6 @@ const HotspotLayer = ({ hotspots }) => {
       `;
 
       circle.bindPopup(popupContent);
-      
-      // Advanced Interaction: Zoom to cluster bounds on click
-      circle.on('click', () => {
-        const bounds = circle.getBounds();
-        map.fitBounds(bounds, {
-          padding: [50, 50],
-          duration: 1.5,
-          easeLinearity: 0.25
-        });
-        
-        // Highlight border briefly
-        circle.setStyle({ weight: 4, fillOpacity: 0.3 });
-        setTimeout(() => {
-          if (map) circle.setStyle({ weight: 2, fillOpacity: 0.15 });
-        }, 1500);
-      });
 
       layerGroup.addLayer(circle);
     });

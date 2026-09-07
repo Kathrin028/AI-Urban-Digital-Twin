@@ -25,7 +25,8 @@ async def register_citizen(user_data: UserRegister) -> dict:
         "password_hash": hash_password(user_data.password),
         "phone": user_data.phone,
         "city": user_data.city,
-        "role": "citizen",
+        "role": user_data.role if user_data.role in ["citizen", "admin", "department"] else "citizen",
+        "department": user_data.department,
         "is_active": True,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()

@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, BrainCircuit, AlertTriangle, Clock3, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, BrainCircuit, AlertTriangle, Clock3, Copy } from "lucide-react";
 import AdminLayout from "../components/admin/AdminLayout";
-import { getComplaintById, updateComplaintStatus, getComplaints } from "../services/complaintService";
-import { getImageUrl } from "../services/api";
-import { Copy } from "lucide-react";
+import { getComplaintById, updateComplaintStatus, getComplaints, assignComplaintToDepartment } from "../services/complaintService";
+import { getDepartments } from "../services/departmentService";
 
 export default function AdminComplaintDetails() {
   const { id } = useParams();
@@ -12,6 +11,9 @@ export default function AdminComplaintDetails() {
   
   const [complaint, setComplaint] = useState(null);
   const [relatedComplaints, setRelatedComplaints] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [selectedDeptId, setSelectedDeptId] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
     getComplaintById(id).then(comp => {
@@ -20,12 +22,29 @@ export default function AdminComplaintDetails() {
         getComplaints({ duplicate_of: id }).then(setRelatedComplaints).catch(console.error);
       }
     }).catch(console.error);
+
+    getDepartments().then(setDepartments).catch(console.error);
   }, [id]);
+
+  const handleAssignDepartment = async () => {
+    if (!selectedDeptId) return;
+    setIsAssigning(true);
+    try {
+      const updated = await assignComplaintToDepartment(id, selectedDeptId);
+      setComplaint(updated);
+      setSelectedDeptId("");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to assign department");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus) => {
     try {
-      await updateComplaintStatus(id, newStatus);
-      setComplaint({ ...complaint, status: newStatus });
+      const updated = await updateComplaintStatus(id, newStatus);
+      setComplaint(updated);
     } catch (err) {
       console.error(err);
       alert("Failed to update status");
@@ -55,10 +74,64 @@ export default function AdminComplaintDetails() {
       </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+        {/* IDENTIFICATION & STATUS BANNER */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-8 flex flex-wrap gap-8 justify-between items-center">
+          <div>
+            <h1 className="text-[24px] font-bold text-slate-900 tracking-tight leading-tight flex items-center gap-3">
+              {complaint.category || "Complaint"}
+              <span className="text-slate-500 font-mono text-[20px]">#{complaint.id?.substring(0,8).toUpperCase()}</span>
+            </h1>
+            <p className="text-[14px] font-medium text-slate-500 mt-2">
+              Reported: {complaint.created_at ? new Date(complaint.created_at).toLocaleString() : "Unknown"}
+              {complaint.updated_at && <span className="ml-4 border-l pl-4 border-slate-300">Last Updated: {new Date(complaint.updated_at).toLocaleString()}</span>}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 text-center shadow-sm">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Status</div>
+              <div className={`text-[15px] font-bold flex items-center justify-center gap-1.5 ${
+                complaint.status === 'Resolved' ? 'text-emerald-600' :
+                complaint.status === 'In Progress' ? 'text-blue-600' :
+                'text-amber-600'
+              }`}>
+                {complaint.status === 'Resolved' ? '🟢 ' : complaint.status === 'In Progress' ? '🔵 ' : '🟠 '}
+                {complaint.status?.toUpperCase()}
+              </div>
+            </div>
+            
+            <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 text-center shadow-sm min-w-[160px]">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Assigned Department</div>
+              <div className={`text-[14px] font-bold ${complaint.assigned_department_name ? 'text-indigo-600' : 'text-slate-500'}`}>
+                {complaint.assigned_department_name || "Not Assigned"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PROGRESS SUMMARY */}
+        <div className="mb-10 bg-blue-50/50 border border-blue-100 rounded-2xl p-6">
+          <h3 className="text-[12px] font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Clock3 size={16} className="text-blue-600" />
+            Current Progress
+          </h3>
+          <p className="text-[15px] text-slate-700 font-medium leading-relaxed">
+            {complaint.status === 'Resolved' && complaint.progress_notes?.length > 0
+              ? `Resolved: ${complaint.progress_notes[complaint.progress_notes.length-1].note}`
+              : complaint.status === 'Resolved'
+              ? "Complaint has been successfully resolved."
+              : complaint.status === 'In Progress' && complaint.progress_notes?.length > 0
+              ? `In Progress: ${complaint.progress_notes[complaint.progress_notes.length-1].note}`
+              : complaint.status === 'In Progress'
+              ? "Field team is currently actively working on this issue."
+              : complaint.assigned_department_name
+              ? "Assigned to department and awaiting field work."
+              : "Complaint submitted and pending department assignment."}
+          </p>
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-start justify-between mb-10 gap-4 border-b border-slate-100 pb-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-[28px] md:text-[32px] font-bold text-slate-900 tracking-tight leading-tight">{complaint.category || "N/A"}</h1>
               {complaint.is_primary !== false ? (
                 <span className="inline-flex items-center rounded-lg px-2.5 py-1 text-[12px] font-bold bg-indigo-100 text-indigo-700">
                   PRIMARY ISSUE
@@ -69,9 +142,6 @@ export default function AdminComplaintDetails() {
                 </span>
               )}
             </div>
-            <p className="text-[15px] font-medium text-slate-500 mt-2">
-              Reported on {complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}
-            </p>
             <p className="text-[13px] font-bold text-slate-400 mt-2 uppercase tracking-wider flex gap-4">
               <span>User ID: {complaint.userId || "Unknown"}</span>
               {complaint.is_primary !== false && complaint.related_report_count > 1 && (
@@ -80,17 +150,42 @@ export default function AdminComplaintDetails() {
             </p>
           </div>
           
-          <div className="flex flex-col items-end gap-2">
-            <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Update Status</span>
-            <select
-              value={complaint.status}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 hover:border-slate-400 transition cursor-pointer"
-            >
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
-            </select>
+          <div className="flex flex-col items-end gap-6">
+            <div className="flex flex-col items-end gap-2">
+              <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Update Status</span>
+              <select
+                value={complaint.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 hover:border-slate-400 transition cursor-pointer"
+              >
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col items-end gap-2">
+              <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Assign Department</span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedDeptId}
+                  onChange={(e) => setSelectedDeptId(e.target.value)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-700 shadow-sm focus:border-blue-500"
+                >
+                  <option value="">Not Assigned</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAssignDepartment}
+                  disabled={!selectedDeptId || isAssigning}
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-[14px] font-bold text-white hover:bg-blue-700 disabled:opacity-50 transition shadow-sm"
+                >
+                  {isAssigning ? "Assigning..." : "Assign"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -106,148 +201,38 @@ export default function AdminComplaintDetails() {
 
             <div>
               <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-3">Location</h3>
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-[15px] text-slate-700 font-mono shadow-inner">
-                {complaint.location?.latitude ?? "N/A"}, {complaint.location?.longitude ?? "N/A"}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6 text-[15px] text-slate-700 font-medium shadow-inner">
+                {complaint.location?.address ? (
+                  <span>{complaint.location.address}</span>
+                ) : complaint.location?.latitude ? (
+                  <span className="font-mono text-[14px]">{complaint.location.latitude}, {complaint.location.longitude}</span>
+                ) : (
+                  "Location not provided"
+                )}
               </div>
             </div>
             
-            {(complaint.image_url || complaint.imageName) && (
-              <div>
-                <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-3">Attached Evidence</h3>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-2 overflow-hidden shadow-inner flex items-center justify-center min-h-[200px]">
-                  {complaint.image_url ? (
-                    <img 
-                      src={getImageUrl(complaint.image_url)} 
-                      alt="Complaint Evidence" 
-                      className="max-h-[400px] w-full object-contain rounded-xl"
-                    />
-                  ) : (
-                    <span className="text-[15px] text-slate-700 font-medium p-4">{complaint.imageName}</span>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {complaint.recommended_action && (
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-6 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                <h3 className="text-[13px] font-bold text-indigo-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                  <span className="text-lg">🤖</span> AI-Assisted Recommended Action
-                </h3>
-                <div className="mb-3">
-                  <span className={`inline-flex font-bold text-[15px] uppercase tracking-wider ${
-                    complaint.recommended_action.severity === 'high' ? 'text-rose-600' :
-                    complaint.recommended_action.severity === 'medium' ? 'text-amber-600' :
-                    complaint.recommended_action.severity === 'low' ? 'text-emerald-600' :
-                    complaint.recommended_action.severity === 'resolved' ? 'text-blue-600' :
-                    'text-slate-500'
-                  }`}>
-                    {complaint.recommended_action.action}
-                  </span>
-                </div>
-                <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
-                  {complaint.recommended_action.reason}
-                </p>
-              </div>
-            )}
-            
-            <div className="rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50/50 to-white p-6 shadow-sm">
-              <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <BrainCircuit className="text-blue-600" size={18} />
-                Evidence Verification
+            <div>
+              <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <BrainCircuit className="text-indigo-600" size={16} />
+                AI Analysis & Priority
               </h3>
-              <div className="mb-6 p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex items-start gap-3">
-                {complaint.evidence_verification_status === "VERIFIED" && <div className="text-emerald-600 mt-0.5"><CheckCircle2 size={20} /></div>}
-                {complaint.evidence_verification_status === "INSUFFICIENT_VISUAL_EVIDENCE" && <div className="text-amber-500 mt-0.5"><AlertTriangle size={20} /></div>}
-                {complaint.evidence_verification_status === "CATEGORY_MISMATCH" && <div className="text-orange-500 mt-0.5"><AlertTriangle size={20} /></div>}
-                {(!complaint.evidence_verification_status || complaint.evidence_verification_status === "NOT_ANALYZED") && <div className="text-slate-400 mt-0.5"><AlertTriangle size={20} /></div>}
-                
-                <div className="flex-1">
-                  <div className="font-semibold text-slate-900">
-                    {complaint.evidence_verification_status === "VERIFIED" && "🟢 Evidence Verified"}
-                    {complaint.evidence_verification_status === "INSUFFICIENT_VISUAL_EVIDENCE" && "🟡 Needs Verification"}
-                    {complaint.evidence_verification_status === "CATEGORY_MISMATCH" && "🟠 Needs Verification"}
-                    {(!complaint.evidence_verification_status || complaint.evidence_verification_status === "NOT_ANALYZED") && "⚪ Not Analyzed"}
-                  </div>
-                  <div className="text-[13px] text-slate-600 mt-1">
-                    {complaint.evidence_verification_status === "INSUFFICIENT_VISUAL_EVIDENCE" && "Insufficient Visual Evidence"}
-                    {complaint.evidence_verification_status === "CATEGORY_MISMATCH" && "Image/Category Mismatch"}
-                  </div>
-                  <div className="text-[12px] text-slate-400 mt-2 italic">
-                    AI-assisted evidence verification. Final verification remains with the City Official.
-                  </div>
-                </div>
-              </div>
-
-              <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <BrainCircuit className="text-blue-600" size={18} />
-                AI Analysis
-              </h3>
-              {complaint.ai_prediction || complaint.aiPrediction ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Detected Category</span>
-                    <span className="text-[14px] font-semibold text-blue-700">
-                      {(complaint.ai_prediction || complaint.aiPrediction).category || "None"}
+              {complaint.aiPrediction ? (
+                <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <span className="text-[14px] font-medium text-slate-600">Verification</span>
+                    <span className={`text-[14px] font-bold ${complaint.evidence_verification_status === 'VERIFIED' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {complaint.evidence_verification_status}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Confidence</span>
-                    <span className="text-[13px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-md">
-                      {(complaint.ai_prediction || complaint.aiPrediction).confidence ? `${((complaint.ai_prediction || complaint.aiPrediction).confidence * 100).toFixed(0)}%` : "0%"}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <span className="text-[14px] font-medium text-slate-600">Priority Level</span>
+                    <span className={`text-[14px] font-bold flex items-center gap-1.5 ${complaint.priority === 'Critical' || complaint.priority === 'High' ? 'text-rose-600' : complaint.priority === 'Medium' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <AlertTriangle size={16} />
+                      {complaint.priority}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Model</span>
-                    <span className="text-[14px] font-semibold text-slate-700">
-                      {(complaint.ai_prediction || complaint.aiPrediction).model_name || "YOLOv8"} v{(complaint.ai_prediction || complaint.aiPrediction).model_version || "1.0"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Inference Time</span>
-                    <span className="text-[14px] font-semibold text-slate-700">
-                      {(complaint.ai_prediction || complaint.aiPrediction).inference_time_ms ? `${(complaint.ai_prediction || complaint.aiPrediction).inference_time_ms} ms` : "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Analysis Time</span>
-                    <span className="text-[14px] font-semibold text-slate-700">
-                      {(complaint.ai_prediction || complaint.aiPrediction).analyzed_at ? new Date((complaint.ai_prediction || complaint.aiPrediction).analyzed_at).toLocaleString() : "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-blue-50 pb-3">
-                    <span className="text-[14px] font-medium text-slate-600">Priority</span>
-                    <span className={`text-[14px] font-semibold flex items-center gap-2 ${
-                      (complaint.priority || (complaint.ai_prediction || complaint.aiPrediction)?.priority) === 'Critical' ? 'text-rose-700' :
-                      (complaint.priority || (complaint.ai_prediction || complaint.aiPrediction)?.priority) === 'High' ? 'text-rose-600' :
-                      (complaint.priority || (complaint.ai_prediction || complaint.aiPrediction)?.priority) === 'Medium' ? 'text-amber-500' :
-                      (complaint.priority || (complaint.ai_prediction || complaint.aiPrediction)?.priority) === 'Low' ? 'text-emerald-600' :
-                      'text-slate-400'
-                    }`}>
-                      <AlertTriangle size={18} />
-                      {(complaint.priority || (complaint.ai_prediction || complaint.aiPrediction)?.priority) || "Not Available Yet"}
-                      {(complaint.ai_prediction || complaint.aiPrediction)?.priority_confidence && (
-                        <span className="text-[11px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-1">
-                          {((complaint.ai_prediction || complaint.aiPrediction).priority_confidence * 100).toFixed(0)}% conf
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  
-                  {(complaint.ai_prediction || complaint.aiPrediction).priority_factors?.length > 0 && (
-                    <div className="pt-2 pb-3 border-b border-blue-50">
-                      <span className="text-[14px] font-medium text-slate-600 block mb-3">Priority Factors</span>
-                      <ul className="space-y-2">
-                        {(complaint.ai_prediction || complaint.aiPrediction).priority_factors.map((factor, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-[13.5px] text-slate-700">
-                            <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                            {factor}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <span className="text-[14px] font-medium text-slate-600">Est. Resolution</span>
                     <span className="text-[14px] font-semibold flex items-center gap-2 text-indigo-700">
                       <Clock3 size={18} />
@@ -323,7 +308,14 @@ export default function AdminComplaintDetails() {
                   <div className="relative">
                     <div className="absolute -left-[29px] top-1 h-4 w-4 rounded-full bg-blue-600 ring-[6px] ring-white shadow-sm" />
                     <div className="pl-8">
-                      <h4 className="text-[15px] font-bold text-slate-900 tracking-tight">Complaint Submitted</h4>
+                      <h4 className="text-[15px] font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                        Complaint Submitted
+                        {complaint.status === 'Pending' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                       <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}</p>
                     </div>
                   </div>
@@ -333,9 +325,16 @@ export default function AdminComplaintDetails() {
                       complaint.status === 'In Progress' || complaint.status === 'Resolved' ? 'bg-blue-600' : 'bg-slate-200'
                     }`} />
                     <div className="pl-8">
-                      <h4 className={`text-[15px] font-bold tracking-tight ${
+                      <h4 className={`text-[15px] font-bold tracking-tight flex items-center gap-3 ${
                         complaint.status === 'In Progress' || complaint.status === 'Resolved' ? 'text-slate-900' : 'text-slate-400'
-                      }`}>In Progress</h4>
+                      }`}>
+                        In Progress
+                        {complaint.status === 'In Progress' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                     </div>
                   </div>
                   
@@ -344,9 +343,16 @@ export default function AdminComplaintDetails() {
                       complaint.status === 'Resolved' ? 'bg-emerald-500' : 'bg-slate-200'
                     }`} />
                     <div className="pl-8">
-                      <h4 className={`text-[15px] font-bold tracking-tight ${
+                      <h4 className={`text-[15px] font-bold tracking-tight flex items-center gap-3 ${
                         complaint.status === 'Resolved' ? 'text-slate-900' : 'text-slate-400'
-                      }`}>Resolved</h4>
+                      }`}>
+                        Resolved
+                        {complaint.status === 'Resolved' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                     </div>
                   </div>
                 </>
@@ -379,7 +385,14 @@ export default function AdminComplaintDetails() {
                       <div className="relative" key={stageStatus}>
                         <div className={`absolute -left-[29px] top-1 h-4 w-4 rounded-full ring-[6px] ring-white shadow-sm transition-colors ${bgColor}`} />
                         <div className="pl-8">
-                          <h4 className={`text-[15px] font-bold tracking-tight ${textColor}`}>{displayTitle}</h4>
+                          <h4 className={`text-[15px] font-bold tracking-tight ${textColor} flex items-center gap-3`}>
+                            {displayTitle}
+                            {complaint.status === stageStatus && (
+                              <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                                Latest Update
+                              </span>
+                            )}
+                          </h4>
                           {isReached && historyEntry && (
                             <p className="mt-1.5 text-[13px] font-medium text-slate-500">
                               {new Date(historyEntry.changed_at).toLocaleString()}

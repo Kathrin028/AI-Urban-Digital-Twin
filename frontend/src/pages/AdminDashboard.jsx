@@ -28,6 +28,7 @@ function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [assignmentFilter, setAssignmentFilter] = useState('');
 
   const refreshData = useCallback(async () => {
     try {
@@ -36,13 +37,14 @@ function AdminDashboard() {
         status: statusFilter,
         category: categoryFilter,
         priority: priorityFilter,
+        assignment: assignmentFilter,
         primary_only: true
       });
       setComplaints(data);
     } catch (err) {
       console.error(err);
     }
-  }, [search, statusFilter, categoryFilter, priorityFilter]);
+  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter]);
 
   useEffect(() => {
     // Analytics is not filtered by search terms, it is a global snapshot
@@ -55,13 +57,14 @@ function AdminDashboard() {
       refreshData();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [refreshData]);
+  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter, refreshData]);
 
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('');
     setCategoryFilter('');
     setPriorityFilter('');
+    setAssignmentFilter('');
   };
 
   return (
@@ -103,87 +106,52 @@ function AdminDashboard() {
 
       {analytics && (
         <>
-          {/* AI Summary Cards */}
-          <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 mb-8">
-            <StatCard
-              title="Citizen Reports"
-              value={analytics.summary.citizen_reports_count.toString()}
-              icon={<ClipboardList size={24} />}
-              colorClass="text-slate-700 bg-slate-100"
-            />
-            <StatCard
-              title="Active Issues"
-              value={analytics.summary.total_complaints.toString()}
-              icon={<ClipboardList size={24} />}
-              colorClass="text-slate-700 bg-slate-100"
-            />
-            <StatCard
-              title="Primary Issues"
-              value={analytics.summary.total_complaints.toString()}
-              icon={<ClipboardList size={24} />}
-              colorClass="text-blue-700 bg-blue-100"
-            />
-            <StatCard
-              title="Duplicate Reports"
-              value={analytics.summary.duplicate_reports_count.toString()}
-              icon={<ClipboardList size={24} />}
-              colorClass="text-slate-500 bg-slate-200"
-            />
-            <StatCard
-              title="Resolved %"
-              value={analytics.summary.resolved_percentage + "%"}
-              icon={<CheckCircle2 size={24} />}
-              colorClass="text-emerald-600 bg-emerald-50"
-            />
-            <StatCard
-              title="Avg Resolution"
-              value={analytics.summary.average_resolution_time + " days"}
-              icon={<Clock3 size={24} />}
-              colorClass="text-blue-600 bg-blue-50"
-            />
-            <StatCard
-              title="High Priority"
-              value={analytics.summary.high_priority_count.toString()}
-              icon={<AlertTriangle size={24} />}
-              colorClass="text-rose-600 bg-rose-50"
-            />
-            <StatCard
-              title="YOLO Detections"
-              value={analytics.ai_summary.yolo_detections.toString()}
-              icon={<BrainCircuit size={24} />}
-              colorClass="text-purple-600 bg-purple-50"
-            />
-            <StatCard
-              title="Avg Confidence"
-              value={(analytics.ai_summary.average_detection_confidence * 100).toFixed(0) + "%"}
-              icon={<Target size={24} />}
-              colorClass="text-indigo-600 bg-indigo-50"
-            />
-            <StatCard
-              title="Predicted Priority"
-              value={analytics.ai_summary.average_predicted_priority}
-              icon={<Star size={24} />}
-              colorClass="text-amber-600 bg-amber-50"
-            />
-            <StatCard
-              title="Total Hotspots"
-              value={analytics.hotspots.total_hotspots.toString()}
-              icon={<Activity size={24} />}
-              colorClass="text-cyan-600 bg-cyan-50"
-            />
-            <StatCard
-              title="Largest Hotspot"
-              value={analytics.hotspots.largest_hotspot.toString()}
-              icon={<MapPinned size={24} />}
-              colorClass="text-orange-600 bg-orange-50"
-            />
-            <StatCard
-              title="Hotspot Severity"
-              value={analytics.hotspots.highest_priority_hotspot}
-              icon={<Flame size={24} />}
-              colorClass="text-red-600 bg-red-50"
-            />
-          </section>
+          {/* Operational Metrics */}
+            <h2 className="text-[18px] font-semibold text-slate-900 tracking-tight mb-4">Operational City Metrics</h2>
+            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 mb-10">
+              <StatCard
+                title="Citizen Reports"
+                value={analytics.summary.citizen_reports_count.toString()}
+                icon={<ClipboardList size={24} />}
+                colorClass="text-slate-700 bg-slate-100"
+              />
+              <StatCard
+                title="Active Issues"
+                value={analytics.summary.total_complaints.toString()}
+                icon={<ClipboardList size={24} />}
+                colorClass="text-slate-700 bg-slate-100"
+              />
+              <StatCard
+                title="Duplicate Reports"
+                value={analytics.summary.duplicate_reports_count.toString()}
+                icon={<ClipboardList size={24} />}
+                colorClass="text-slate-500 bg-slate-200"
+              />
+              <StatCard
+                title="High Priority"
+                value={analytics.summary.high_priority_count.toString()}
+                icon={<AlertTriangle size={24} />}
+                colorClass="text-rose-600 bg-rose-50"
+              />
+              <StatCard
+                title="Resolved %"
+                value={analytics.summary.resolved_percentage + "%"}
+                icon={<CheckCircle2 size={24} />}
+                colorClass="text-emerald-600 bg-emerald-50"
+              />
+              <StatCard
+                title="Avg Resolution"
+                value={analytics.summary.average_resolution_time + " days"}
+                icon={<Clock3 size={24} />}
+                colorClass="text-blue-600 bg-blue-50"
+              />
+              <StatCard
+                title="Total Hotspots"
+                value={analytics.hotspots.total_hotspots.toString()}
+                icon={<Activity size={24} />}
+                colorClass="text-cyan-600 bg-cyan-50"
+              />
+            </section>
 
           {/* Charts Section */}
           <section className="grid gap-6 lg:grid-cols-2 mb-8">
@@ -430,6 +398,47 @@ function AdminDashboard() {
         </section>
       )}
 
+      {analytics && (
+        <div className="mb-10">
+          <h2 className="text-[18px] font-semibold text-slate-900 tracking-tight mb-4 flex items-center gap-2">
+            <BrainCircuit className="text-purple-600" size={20} />
+            AI & Analytics Metrics
+          </h2>
+          <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            <StatCard
+              title="YOLO Detections"
+              value={analytics.ai_summary.yolo_detections.toString()}
+              icon={<BrainCircuit size={24} />}
+              colorClass="text-purple-600 bg-purple-50"
+            />
+            <StatCard
+              title="Avg Confidence"
+              value={(analytics.ai_summary.average_detection_confidence * 100).toFixed(0) + "%"}
+              icon={<Target size={24} />}
+              colorClass="text-indigo-600 bg-indigo-50"
+            />
+            <StatCard
+              title="Predicted Priority"
+              value={analytics.ai_summary.average_predicted_priority}
+              icon={<Star size={24} />}
+              colorClass="text-amber-600 bg-amber-50"
+            />
+            <StatCard
+              title="Largest Hotspot"
+              value={analytics.hotspots.largest_hotspot.toString()}
+              icon={<MapPinned size={24} />}
+              colorClass="text-orange-600 bg-orange-50"
+            />
+            <StatCard
+              title="Hotspot Severity"
+              value={analytics.hotspots.highest_priority_hotspot}
+              icon={<Flame size={24} />}
+              colorClass="text-red-600 bg-red-50"
+            />
+          </section>
+        </div>
+      )}
+
       {/* Combined Management Section */}
       <section className="rounded-3xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)] overflow-hidden flex flex-col">
         {/* Filters */}
@@ -444,7 +453,7 @@ function AdminDashboard() {
             </button>
           </div>
           
-          <div className="grid gap-5 md:grid-cols-4">
+          <div className="grid gap-5 md:grid-cols-5">
             <div>
               <label className="block text-[14px] font-medium text-slate-700 mb-2">Search</label>
               <input 
@@ -495,6 +504,18 @@ function AdminDashboard() {
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[14px] font-medium text-slate-700 mb-2">Assignment</label>
+              <select 
+                value={assignmentFilter}
+                onChange={e => setAssignmentFilter(e.target.value)}
+                className="w-full h-12 border border-slate-300 rounded-xl px-4 text-[15px] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition bg-white hover:border-slate-400"
+              >
+                <option value="">All Assignments</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
               </select>
             </div>
           </div>

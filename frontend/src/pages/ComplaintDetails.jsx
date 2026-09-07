@@ -308,7 +308,8 @@ export default function ComplaintDetails() {
           </div>
 
           {/* Right Column - Timeline */}
-          <div>
+          <div className="space-y-12">
+            <div>
             <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-8">Status Timeline</h3>
             <div className="relative border-l-2 border-slate-100 ml-4 space-y-10 pb-6">
               
@@ -318,7 +319,14 @@ export default function ComplaintDetails() {
                   <div className="relative">
                     <div className="absolute -left-[29px] top-1 h-4 w-4 rounded-full bg-blue-600 ring-[6px] ring-white shadow-sm" />
                     <div className="pl-8">
-                      <h4 className="text-[15px] font-bold text-slate-900 tracking-tight">Complaint Submitted</h4>
+                      <h4 className="text-[15px] font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                        Complaint Submitted
+                        {complaint.status === 'Pending' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                       <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}</p>
                     </div>
                   </div>
@@ -328,9 +336,16 @@ export default function ComplaintDetails() {
                       complaint.status === 'In Progress' || complaint.status === 'Resolved' ? 'bg-blue-600' : 'bg-slate-200'
                     }`} />
                     <div className="pl-8">
-                      <h4 className={`text-[15px] font-bold tracking-tight ${
+                      <h4 className={`text-[15px] font-bold tracking-tight flex items-center gap-3 ${
                         complaint.status === 'In Progress' || complaint.status === 'Resolved' ? 'text-slate-900' : 'text-slate-400'
-                      }`}>In Progress</h4>
+                      }`}>
+                        In Progress
+                        {complaint.status === 'In Progress' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                       {complaint.status === 'In Progress' && (
                         <p className="mt-1.5 text-[14px] text-slate-500 leading-relaxed">The city is currently working on this issue.</p>
                       )}
@@ -342,9 +357,16 @@ export default function ComplaintDetails() {
                       complaint.status === 'Resolved' ? 'bg-emerald-500' : 'bg-slate-200'
                     }`} />
                     <div className="pl-8">
-                      <h4 className={`text-[15px] font-bold tracking-tight ${
+                      <h4 className={`text-[15px] font-bold tracking-tight flex items-center gap-3 ${
                         complaint.status === 'Resolved' ? 'text-slate-900' : 'text-slate-400'
-                      }`}>Resolved</h4>
+                      }`}>
+                        Resolved
+                        {complaint.status === 'Resolved' && (
+                          <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                            Latest Update
+                          </span>
+                        )}
+                      </h4>
                       {complaint.status === 'Resolved' && (
                         <p className="mt-1.5 text-[14px] text-slate-500 leading-relaxed">The issue has been successfully resolved.</p>
                       )}
@@ -384,7 +406,14 @@ export default function ComplaintDetails() {
                       <div className="relative" key={stageStatus}>
                         <div className={`absolute -left-[29px] top-1 h-4 w-4 rounded-full ring-[6px] ring-white shadow-sm transition-colors ${bgColor}`} />
                         <div className="pl-8">
-                          <h4 className={`text-[15px] font-bold tracking-tight ${textColor}`}>{displayTitle}</h4>
+                          <h4 className={`text-[15px] font-bold tracking-tight ${textColor} flex items-center gap-3`}>
+                            {displayTitle}
+                            {complaint.status === stageStatus && (
+                              <span className="inline-flex items-center rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider border border-blue-100">
+                                Latest Update
+                              </span>
+                            )}
+                          </h4>
                           {isReached && historyEntry && (
                             <p className="mt-1.5 text-[13px] font-medium text-slate-500">
                               {new Date(historyEntry.changed_at).toLocaleString()}
@@ -395,6 +424,48 @@ export default function ComplaintDetails() {
                     );
                   })}
                 </>
+                )}
+              </div>
+
+              {complaint.progress_notes && complaint.progress_notes.length > 0 && (
+                <div className="mt-12">
+                  <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-4">Progress Notes</h3>
+                  <div className="space-y-4">
+                    {[...complaint.progress_notes].reverse().map((note, idx) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-[13px] font-bold text-slate-900">{note.created_by_name}</p>
+                            <p className="text-[11px] font-medium text-indigo-600">{note.department}</p>
+                          </div>
+                          <span className="text-[11px] font-medium text-slate-500">{new Date(note.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-[14px] text-slate-700 whitespace-pre-wrap">{note.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {complaint.field_evidence && complaint.field_evidence.length > 0 && (
+                <div className="mt-12">
+                  <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-3">Field Work Evidence</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {complaint.field_evidence.map((evidence, idx) => (
+                      <div key={idx} className="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-white">
+                        <img 
+                          src={getImageUrl(evidence.file_url)} 
+                          alt="Field Evidence" 
+                          className="h-32 w-full object-cover"
+                        />
+                        <div className="p-3 bg-slate-50 border-t border-slate-100">
+                          <p className="text-[11px] font-semibold text-slate-700 truncate">{evidence.uploaded_by_name}</p>
+                          <p className="text-[10px] text-slate-500">{new Date(evidence.uploaded_at).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

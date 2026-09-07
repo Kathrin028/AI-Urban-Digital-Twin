@@ -35,3 +35,12 @@ async def get_current_active_admin(current_user: dict = Depends(get_current_user
             detail="The user doesn't have enough privileges"
         )
     return current_user
+
+async def get_current_department_user(current_user: dict = Depends(get_current_user)) -> dict:
+    role = current_user.get("role")
+    if role not in ["admin", "department"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user

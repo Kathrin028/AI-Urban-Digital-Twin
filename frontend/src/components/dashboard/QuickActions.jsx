@@ -1,7 +1,6 @@
 import {
   FilePlus2,
   ClipboardList,
-  MapPinned,
 } from "lucide-react";
 
 import { Link } from "react-router-dom";
@@ -18,12 +17,6 @@ const actions = [
     desc: "Check the status of your reports",
     icon: <ClipboardList size={24} />,
     path: "/track",
-  },
-  {
-    title: "View Hotspot Map",
-    desc: "Explore issues reported in your city",
-    icon: <MapPinned size={24} />,
-    path: "/map",
   },
 ];
 

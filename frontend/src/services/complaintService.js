@@ -55,3 +55,28 @@ export const analyzeComplaintImage = async (file) => {
     body: formData
   });
 };
+
+
+export const assignComplaintToDepartment = async (complaintId, departmentId) => {
+  return await fetchApi(`/api/complaints/${complaintId}/assign`, {
+    method: 'PATCH',
+    body: JSON.stringify({ department_id: departmentId }),
+  });
+};
+
+
+export const addProgressNote = async (id, note) => {
+  return await fetchApi(`/api/complaints/${id}/progress-notes`, {
+    method: 'POST',
+    body: JSON.stringify({ note })
+  });
+};
+
+export const uploadFieldEvidence = async (id, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return await fetchApi(`/api/complaints/${id}/field-evidence`, {
+    method: 'POST',
+    body: formData
+  });
+};

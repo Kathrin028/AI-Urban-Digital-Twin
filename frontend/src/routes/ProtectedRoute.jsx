@@ -28,6 +28,8 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     // Redirect to the correct dashboard based on actual role
     if (user.role === 'admin') {
       return <Navigate to="/admin" replace />;
+    } else if (user.role === 'department') {
+      return <Navigate to="/department/dashboard" replace />;
     } else {
       return <Navigate to="/citizen" replace />;
     }

@@ -20,12 +20,12 @@ const Legend = () => {
         <div className="h-px bg-slate-200/60 my-2"></div>
         
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded-full bg-[#ef4444] opacity-40 border border-[#ef4444]"></div>
+          <div className="w-5 h-5 rounded-full bg-[#ef4444] opacity-30 border border-[#ef4444]"></div>
           <span className="text-[13px] font-medium text-slate-600">AI Hotspot</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded-full bg-blue-500 opacity-20 filter blur-[1px]"></div>
-          <span className="text-[13px] font-medium text-slate-600">Density Heatmap</span>
+          <div className="w-6 h-6 rounded-full bg-[#3b82f6] text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm">12</div>
+          <span className="text-[13px] font-medium text-slate-600">Complaint Cluster</span>
         </div>
       </div>
     </div>
