@@ -24,3 +24,6 @@ models/priority/*.joblib
 # Uploads
 uploads/complaints/*
 !uploads/complaints/.gitkeep
+
+!models/detection/urbanmind_yolov1/weights/best.pt
+!models/priority/random_forest.pkl

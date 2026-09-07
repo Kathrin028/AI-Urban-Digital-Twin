@@ -55,8 +55,10 @@ app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 
 # Mount static files for uploads
-app.mount("/uploads/complaints", StaticFiles(directory="uploads/complaints"), name="complaint_uploads")
 import os
+os.makedirs("uploads/complaints", exist_ok=True)
+app.mount("/uploads/complaints", StaticFiles(directory="uploads/complaints"), name="complaint_uploads")
+
 os.makedirs("uploads/profiles", exist_ok=True)
 app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="profile_uploads")
 
