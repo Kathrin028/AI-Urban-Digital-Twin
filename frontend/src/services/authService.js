@@ -93,9 +93,17 @@ export async function getCurrentUser() {
       method: 'GET',
     });
     return user;
-  } catch {
-    // Token might be invalid or expired
-    clearToken();
+  } catch (error) {
+    // Only clear token if the backend explicitly rejected it (e.g. 401 Unauthorized)
+    // Avoid clearing on generic network errors or 500s to preserve session resilience
+    const msg = error?.message?.toLowerCase() || '';
+    if (
+      msg.includes('credentials') || 
+      msg.includes('authenticated') || 
+      msg.includes('inactive')
+    ) {
+      clearToken();
+    }
     return null;
   }
 }
