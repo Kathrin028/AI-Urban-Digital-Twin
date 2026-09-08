@@ -5,7 +5,13 @@ export async function fetchApi(endpoint, options = {}) {
   
   const headers = { ...options.headers };
 
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+  const isFormData = 
+    options.body instanceof FormData || 
+    (options.body && 
+      options.body.constructor && 
+      options.body.constructor.name === 'FormData');
+
+  if (!isFormData && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
