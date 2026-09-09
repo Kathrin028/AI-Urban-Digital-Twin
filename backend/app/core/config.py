@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     host: str = "127.0.0.1"
     port: int = 8000
-    allowed_origins: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    allowed_origins: str = "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://ai-urban-digital-twin.vercel.app"
     
     mongodb_uri: str = "mongodb://127.0.0.1:27017"
     mongodb_db_name: str = "urbanmind_ai"
