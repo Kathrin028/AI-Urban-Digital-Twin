@@ -56,11 +56,17 @@ app.include_router(health.router, prefix="/api/health", tags=["health"])
 
 # Mount static files for uploads
 import os
-os.makedirs("uploads/complaints", exist_ok=True)
-app.mount("/uploads/complaints", StaticFiles(directory="uploads/complaints"), name="complaint_uploads")
+from pathlib import Path
 
-os.makedirs("uploads/profiles", exist_ok=True)
-app.mount("/uploads/profiles", StaticFiles(directory="uploads/profiles"), name="profile_uploads")
+base_dir = Path(__file__).parent.parent
+complaints_dir = base_dir / "uploads" / "complaints"
+profiles_dir = base_dir / "uploads" / "profiles"
+
+os.makedirs(complaints_dir, exist_ok=True)
+app.mount("/uploads/complaints", StaticFiles(directory=str(complaints_dir)), name="complaint_uploads")
+
+os.makedirs(profiles_dir, exist_ok=True)
+app.mount("/uploads/profiles", StaticFiles(directory=str(profiles_dir)), name="profile_uploads")
 
 @app.get("/")
 async def root():
