@@ -48,7 +48,7 @@ class CivicIssueDetector:
             
         try:
             start_time = time.time()
-            results = self.model(image_path, conf=0.02)
+            results = self.model(image_path, conf=0.02, imgsz=320)
             inference_time_ms = round((time.time() - start_time) * 1000)
             
             if not results:
