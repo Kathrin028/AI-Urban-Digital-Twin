@@ -103,13 +103,31 @@ async def analyze_complaint_image(file: UploadFile = File(...), current_user: di
     uploads_dir.mkdir(parents=True, exist_ok=True)
     file_path = uploads_dir / safe_filename
     
-    with open(file_path, "wb") as buffer:
-        while chunk := file.file.read(8192):
-            buffer.write(chunk)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from PIL import Image
+        with Image.open(file.file) as img:
+            if img.width > 640 or img.height > 640:
+                img.thumbnail((640, 640))
+            if img.mode == 'RGBA' and ext == 'jpg':
+                img = img.convert('RGB')
+            img.save(file_path, format=img.format if img.format else 'JPEG')
+        logger.info(f"Analysis request received. Resized image ready: {safe_filename}")
+    except Exception as e:
+        logger.error(f"Image processing failed: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
             
     try:
         t0 = time.time()
-        prediction_result = detector.predict(str(file_path))
+        logger.info(f"YOLO inference started for {safe_filename}")
+        
+        from starlette.concurrency import run_in_threadpool
+        prediction_result = await run_in_threadpool(detector.predict, str(file_path))
+        
+        logger.info(f"YOLO inference completed for {safe_filename}. Available: {prediction_result.get('available')}")
+        
         if prediction_result.get("available"):
             ai_prediction = {
                 "available": True,
@@ -132,16 +150,24 @@ async def analyze_complaint_image(file: UploadFile = File(...), current_user: di
                 "image_exists": 1
             }
             from app.ml.priority.predictor import priority_predictor
-            pri_result = priority_predictor.predict(priority_features)
+            
+            logger.info(f"Random Forest prediction started for {safe_filename}")
+            pri_result = await run_in_threadpool(priority_predictor.predict, priority_features)
+            logger.info(f"Random Forest prediction completed for {safe_filename}")
             if pri_result.get("available"):
                 ai_prediction["priority"] = pri_result.get("priority")
                 ai_prediction["priority_confidence"] = pri_result.get("priority_confidence")
                 ai_prediction["model_name"] = f"{ai_prediction['model_name']} + RandomForest"
                 ai_prediction["model_version"] = "1.1"
                 
+            logger.info(f"Endpoint completed successfully for {safe_filename}")
             return ai_prediction
         else:
+            logger.info(f"Endpoint completed successfully for {safe_filename} (model not available)")
             return {"available": False, "reason": prediction_result.get("reason", "model_not_loaded")}
+    except Exception as e:
+        logger.error(f"Exception during analysis pipeline for {safe_filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
     finally:
         if file_path.exists():
             os.remove(file_path)
@@ -398,9 +424,21 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
     
     file_path = uploads_dir / safe_filename
     
-    with open(file_path, "wb") as buffer:
-        while chunk := file.file.read(8192):
-            buffer.write(chunk)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from PIL import Image
+        with Image.open(file.file) as img:
+            if img.width > 640 or img.height > 640:
+                img.thumbnail((640, 640))
+            if img.mode == 'RGBA' and ext == 'jpg':
+                img = img.convert('RGB')
+            img.save(file_path, format=img.format if img.format else 'JPEG')
+        logger.info(f"Upload request received. Resized image ready: {safe_filename}")
+    except Exception as e:
+        logger.error(f"Image processing failed: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
             
     SUPPORTED_AI_CATEGORIES = ["garbage", "pothole", "road damage"]
     citizen_cat = complaint.get("category", "").strip().lower()
@@ -416,7 +454,12 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
         ai_prediction = None
         try:
             t0 = time.time()
-            prediction_result = detector.predict(str(file_path))
+            logger.info(f"YOLO inference started for {safe_filename}")
+            
+            from starlette.concurrency import run_in_threadpool
+            prediction_result = await run_in_threadpool(detector.predict, str(file_path))
+            
+            logger.info(f"YOLO inference completed for {safe_filename}. Available: {prediction_result.get('available')}")
             
             yolo_time = prediction_result.get("inference_time_ms", 0)
             
@@ -451,7 +494,11 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
                     "image_exists": 1
                 }
                 
-                pri_result = priority_predictor.predict(priority_features)
+                from starlette.concurrency import run_in_threadpool
+                logger.info(f"Random Forest prediction started for {safe_filename}")
+                pri_result = await run_in_threadpool(priority_predictor.predict, priority_features)
+                logger.info(f"Random Forest prediction completed for {safe_filename}")
+                
                 if pri_result.get("available"):
                     ai_prediction["priority"] = pri_result.get("priority")
                     ai_prediction["priority_confidence"] = pri_result.get("priority_confidence")
