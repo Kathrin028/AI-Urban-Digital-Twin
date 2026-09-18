@@ -4,6 +4,7 @@ import ComplaintTable from "../components/admin/ComplaintTable";
 import { getComplaints } from "../services/complaintService";
 import { useAuth } from "../hooks/useAuth";
 import StatCard from "../components/dashboard/StatCard";
+import { ClipboardList, Clock, Activity, CheckCircle } from "lucide-react";
 
 export default function DepartmentDashboard() {
   const { user } = useAuth();
@@ -51,31 +52,38 @@ export default function DepartmentDashboard() {
         </p>
       </div>
 
-      {/* Summary Cards */}
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
           title="Total Assigned"
           value={totalAssigned.toString()}
           trend="+0%"
           trendUp={true}
+          icon={<ClipboardList size={24} />}
+          colorClass="text-slate-700 bg-slate-100"
         />
         <StatCard
           title="Pending"
           value={pendingCount.toString()}
           trend="+0%"
           trendUp={false}
+          icon={<Clock size={24} />}
+          colorClass="text-amber-600 bg-amber-50"
         />
         <StatCard
           title="In Progress"
           value={inProgressCount.toString()}
           trend="+0%"
           trendUp={true}
+          icon={<Activity size={24} />}
+          colorClass="text-blue-600 bg-blue-50"
         />
         <StatCard
           title="Resolved"
           value={resolvedCount.toString()}
           trend="+0%"
           trendUp={true}
+          icon={<CheckCircle size={24} />}
+          colorClass="text-emerald-600 bg-emerald-50"
         />
       </section>
 
