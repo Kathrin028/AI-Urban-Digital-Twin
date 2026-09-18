@@ -11,6 +11,16 @@ from app.core.dependencies import get_current_user, get_current_active_admin, ge
 
 router = APIRouter()
 
+import cloudinary
+import cloudinary.uploader
+
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
+
 from app.services.priority_explanation import generate_priority_factors
 from app.services.recommendations import get_recommended_action
 from app.services.duplicate_detection import check_similar_complaints
