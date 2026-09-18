@@ -18,6 +18,8 @@ export default function RegisterForm() {
     password: "",
     confirmPassword: "",
     agreed: false,
+    role: "citizen",
+    department: "",
   });
 
   const [error, setError] = useState("");
@@ -34,6 +36,7 @@ export default function RegisterForm() {
     if (!form.password) return "Please enter a password.";
     if (form.password.length < 6) return "Password must be at least 6 characters.";
     if (form.password !== form.confirmPassword) return "Passwords do not match.";
+    if (form.role === "department" && !form.department.trim()) return "Please enter your department name.";
     if (!form.agreed) return "You must agree to the Terms & Conditions.";
     return null;
   };
@@ -56,8 +59,10 @@ export default function RegisterForm() {
         password: form.password,
         phone: form.phone,
         city: form.city,
+        role: form.role,
+        department: form.role === "department" ? form.department : undefined,
       });
-      navigate("/citizen", { replace: true });
+      navigate(form.role === "department" ? "/department" : "/citizen", { replace: true });
     } catch (err) {
       setError(err.message || "Registration failed. Please try again.");
     } finally {
@@ -139,6 +144,37 @@ export default function RegisterForm() {
             <option>Tiruppur</option>
           </select>
         </div>
+
+        {/* Role */}
+        <div>
+          <label className="mb-2 block text-[14px] font-medium text-slate-700">
+            Account Type
+          </label>
+          <select
+            value={form.role}
+            onChange={set("role")}
+            className="h-12 w-full rounded-xl border border-slate-300 px-4 text-[15px] outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white hover:border-slate-400"
+          >
+            <option value="citizen">Citizen</option>
+            <option value="department">Department</option>
+          </select>
+        </div>
+
+        {/* Department Name */}
+        {form.role === "department" && (
+          <div>
+            <label className="mb-2 block text-[14px] font-medium text-slate-700">
+              Department Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Sanitation, Roads & Infrastructure"
+              value={form.department}
+              onChange={set("department")}
+              className="h-12 w-full rounded-xl border border-slate-300 px-4 text-[15px] outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-slate-400"
+            />
+          </div>
+        )}
 
         {/* Password */}
         <div>

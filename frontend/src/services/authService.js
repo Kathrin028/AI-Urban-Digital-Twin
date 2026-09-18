@@ -43,7 +43,7 @@ export async function login({ email, password }) {
  *
  * @returns {Promise<{user: object}>}
  */
-export async function register({ name, email, password, phone, city }) {
+export async function register({ name, email, password, phone, city, role, department }) {
   if (!name || !email || !password) {
     return Promise.reject(new Error('Name, email, and password are required.'));
   }
@@ -51,7 +51,7 @@ export async function register({ name, email, password, phone, city }) {
   try {
     await fetchApi('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password, phone, city }),
+      body: JSON.stringify({ name, email, password, phone, city, role, department }),
     });
 
     // Registration returns user schema. We don't auto-login here since the original didn't generate JWT on register, 
