@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
     await connect_to_mongo()
     
     # Load YOLO model
-    model_path = Path(__file__).parent.parent / "models" / "detection" / "urbanmind_yolov1" / "weights" / "best.pt"
+    model_path = Path(__file__).parent.parent / "models" / "detection" / "urbanmind_yolov1" / "weights" / "best.onnx"
     detector.load_model(str(model_path))
     
     # Load Priority Model

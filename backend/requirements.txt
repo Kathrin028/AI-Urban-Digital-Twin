@@ -9,7 +9,7 @@ email-validator
 python-multipart==0.0.9
 pytest==8.0.0
 pytest-asyncio==0.23.5
-ultralytics==8.4.107
+onnxruntime
 numpy
 pandas
 scikit-learn
