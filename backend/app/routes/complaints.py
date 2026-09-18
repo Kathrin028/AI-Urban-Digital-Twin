@@ -436,9 +436,19 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
                 img = img.convert('RGB')
             img.save(file_path, format=img.format if img.format else 'JPEG')
         logger.info(f"Upload request received. Resized image ready: {safe_filename}")
+        
+        import cloudinary.uploader
+        upload_result = cloudinary.uploader.upload(
+            str(file_path),
+            folder="urbanmind/complaints"
+        )
+        cloudinary_url = upload_result.get("secure_url")
+        logger.info("Cloudinary upload successful")
     except Exception as e:
-        logger.error(f"Image processing failed: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid image file: {e}")
+        logger.error(f"Image processing or upload failed: {e}")
+        if file_path.exists():
+            os.remove(file_path)
+        raise HTTPException(status_code=400, detail=f"Image upload failed: {e}")
             
     SUPPORTED_AI_CATEGORIES = ["garbage", "pothole", "road damage"]
     citizen_cat = complaint.get("category", "").strip().lower()
@@ -534,7 +544,7 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
                     evidence_status = "CATEGORY_MISMATCH"
 
                 
-    image_url = f"/uploads/complaints/{safe_filename}"
+    image_url = cloudinary_url
     image_metadata = {
         "original_filename": file.filename,
         "stored_filename": safe_filename,
@@ -562,6 +572,12 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
     )
     
     updated_complaint = await db_instance.db.complaints.find_one({"_id": ObjectId(complaint_id)})
+    if file_path.exists():
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
+
     return serialize_complaint(updated_complaint)
 @router.patch("/{complaint_id}/assign", response_model=ComplaintResponse)
 async def assign_complaint(complaint_id: str, assign_data: ComplaintAssign, current_admin: dict = Depends(get_current_active_admin)):
@@ -675,8 +691,20 @@ async def upload_field_evidence(complaint_id: str, file: UploadFile = File(...),
         while chunk := file.file.read(8192):
             buffer.write(chunk)
             
+    try:
+        import cloudinary.uploader
+        upload_result = cloudinary.uploader.upload(
+            str(file_path),
+            folder="urbanmind/field-evidence"
+        )
+        file_url = upload_result.get("secure_url")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary upload failed: {e}")
+    finally:
+        if file_path.exists():
+            os.remove(file_path)
+            
     evidence_id = str(uuid.uuid4())
-    file_url = f"/uploads/complaints/{safe_filename}"
     
     new_evidence = {
         "id": evidence_id,
