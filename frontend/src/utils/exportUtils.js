@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { formatDateIST, formatDateISTShort } from './dateUtils';
 
 // Export Complaints to CSV
 export const exportComplaintsToCSV = (complaints, filename = 'complaints_export.csv') => {
@@ -14,7 +15,7 @@ export const exportComplaintsToCSV = (complaints, filename = 'complaints_export.
     const category = c.category || 'N/A';
     const priority = c.priority || c.aiPrediction?.priority || c.ai_prediction?.priority || 'N/A';
     const status = c.status || 'N/A';
-    const date = new Date(c.date || c.created_at).toLocaleDateString();
+    const date = formatDateISTShort(c.date || c.created_at);
     
     // Clean description to avoid breaking CSV
     let desc = c.description ? c.description.replace(/"/g, '""') : 'N/A';
@@ -46,7 +47,7 @@ export const exportComplaintsToPDF = (complaints, filename = 'complaints_report.
   
   doc.setFontSize(11);
   doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+  doc.text(`Generated on: ${formatDateIST(new Date().toISOString())}`, 14, 30);
   doc.text(`Total Records: ${complaints.length}`, 14, 36);
 
   const tableColumn = ["ID", "Category", "Priority", "Status", "Date"];
@@ -58,7 +59,7 @@ export const exportComplaintsToPDF = (complaints, filename = 'complaints_report.
     const category = c.category || 'N/A';
     const priority = c.priority || c.aiPrediction?.priority || c.ai_prediction?.priority || 'N/A';
     const status = c.status || 'N/A';
-    const date = new Date(c.date || c.created_at).toLocaleDateString();
+    const date = formatDateISTShort(c.date || c.created_at);
 
     tableRows.push([shortId, category, priority, status, date]);
   });
@@ -87,7 +88,7 @@ export const exportAnalyticsToPDF = (stats, filename = 'analytics_summary.pdf') 
   
   doc.setFontSize(11);
   doc.setTextColor(100);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+  doc.text(`Generated on: ${formatDateIST(new Date().toISOString())}`, 14, 30);
   
   doc.setFontSize(14);
   doc.setTextColor(0);

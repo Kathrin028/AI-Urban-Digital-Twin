@@ -66,6 +66,7 @@ class FieldEvidence(BaseModel):
 class ComplaintResponse(BaseModel):
     id: str
     user_id: str
+    user_name: Optional[str] = None
     category: str
     description: str
     location: LocationSchema

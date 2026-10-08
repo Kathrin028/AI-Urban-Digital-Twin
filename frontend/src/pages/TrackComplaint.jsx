@@ -4,7 +4,7 @@ import { Search, X, ClipboardList } from "lucide-react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useAuth } from "../hooks/useAuth";
 import { getComplaintsByUser } from "../services/complaintService";
-
+import { formatDateISTShort } from "../utils/dateUtils";
 function TrackComplaint() {
   const { user } = useAuth();
   
@@ -233,8 +233,8 @@ function TrackComplaint() {
                   </div>
                 </div>
                 <div className="col-span-4 md:col-span-3 text-[14px] font-medium text-slate-600">
-                  <div>Reported: {new Date(complaint.created_at || complaint.date).toLocaleDateString()}</div>
-                  {complaint.updated_at && <div className="text-[12px] text-slate-400 mt-1">Updated: {new Date(complaint.updated_at).toLocaleDateString()}</div>}
+                  <div>Reported: {formatDateISTShort(complaint.created_at || complaint.date)}</div>
+                  {complaint.updated_at && <div className="text-[12px] text-slate-400 mt-1">Updated: {formatDateISTShort(complaint.updated_at)}</div>}
                 </div>
                 <div className="col-span-3 md:col-span-3">
                   <span className={`inline-flex items-center rounded-md px-3 py-1.5 text-[13px] font-bold ${

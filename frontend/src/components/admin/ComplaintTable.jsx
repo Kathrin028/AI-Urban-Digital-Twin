@@ -3,7 +3,7 @@ import StatusBadge from "./StatusBadge";
 import { updateComplaintStatus } from "../../services/complaintService";
 import { useNotifications } from "../../contexts/NotificationContext";
 import { useAuth } from "../../hooks/useAuth";
-
+import { formatDateISTShort } from "../../utils/dateUtils";
 export default function ComplaintTable({ complaints, onStatusChange, basePath = "/admin/complaints" }) {
   const { addNotification } = useNotifications();
   const { user } = useAuth();
@@ -47,7 +47,7 @@ export default function ComplaintTable({ complaints, onStatusChange, basePath = 
               <td className="px-8 py-5">
                 <div className="font-bold text-indigo-900 mb-1 uppercase tracking-tight text-[13px]">{c.category.toUpperCase()} ISSUE CLUSTER</div>
                 <div className="text-[12px] text-slate-500 font-semibold"><span className="text-slate-700">Complaint #{c.id.substring(0, 8).toUpperCase()}</span></div>
-                <div className="text-[11px] text-slate-400 mt-1">Reported: {c.created_at ? new Date(c.created_at).toLocaleDateString() : "N/A"}</div>
+                <div className="text-[11px] text-slate-400 mt-1">Reported: {c.created_at ? formatDateISTShort(c.created_at) : "N/A"}</div>
               </td>
               <td className="px-8 py-5 max-w-[240px]">
                 <div className="font-semibold text-slate-800 text-[13px] truncate">{c.location?.address || "Unknown Location"}</div>
@@ -76,7 +76,7 @@ export default function ComplaintTable({ complaints, onStatusChange, basePath = 
               </td>
               <td className="px-8 py-5 whitespace-nowrap">
                 <StatusBadge status={c.status} />
-                {c.updated_at && <div className="mt-1 text-[11px] font-medium text-slate-500">Updated: {new Date(c.updated_at).toLocaleDateString()}</div>}
+                {c.updated_at && <div className="mt-1 text-[11px] font-medium text-slate-500">Updated: {formatDateISTShort(c.updated_at)}</div>}
                 <div className={`mt-2 text-[11px] font-bold uppercase tracking-wider ${c.assigned_department ? 'text-blue-600' : 'text-slate-400'}`}>
                   {c.assigned_department_name || (c.assigned_department ? (user?.role === 'department' ? user.department : "Assigned") : "Unassigned")}
                 </div>

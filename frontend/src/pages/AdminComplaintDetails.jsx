@@ -4,7 +4,7 @@ import { ArrowLeft, BrainCircuit, AlertTriangle, Clock3, Copy } from "lucide-rea
 import AdminLayout from "../components/admin/AdminLayout";
 import { getComplaintById, updateComplaintStatus, getComplaints, assignComplaintToDepartment } from "../services/complaintService";
 import { getDepartments } from "../services/departmentService";
-
+import { formatDateIST } from "../utils/dateUtils";
 export default function AdminComplaintDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,8 +82,8 @@ export default function AdminComplaintDetails() {
               <span className="text-slate-500 font-mono text-[20px]">#{complaint.id?.substring(0,8).toUpperCase()}</span>
             </h1>
             <p className="text-[14px] font-medium text-slate-500 mt-2">
-              Reported: {complaint.created_at ? new Date(complaint.created_at).toLocaleString() : "Unknown"}
-              {complaint.updated_at && <span className="ml-4 border-l pl-4 border-slate-300">Last Updated: {new Date(complaint.updated_at).toLocaleString()}</span>}
+              Reported: {complaint.created_at ? formatDateIST(complaint.created_at) : "Unknown"}
+              {complaint.updated_at && <span className="ml-4 border-l pl-4 border-slate-300">Last Updated: {formatDateIST(complaint.updated_at)}</span>}
             </p>
           </div>
           <div className="flex flex-wrap gap-4 items-center">
@@ -143,7 +143,7 @@ export default function AdminComplaintDetails() {
               )}
             </div>
             <p className="text-[13px] font-bold text-slate-400 mt-2 uppercase tracking-wider flex gap-4">
-              <span>User ID: {complaint.userId || "Unknown"}</span>
+              <span>User: {complaint.user_name || complaint.user_id || "Unknown"}</span>
               {complaint.is_primary !== false && complaint.related_report_count > 1 && (
                 <span className="text-indigo-600">Citizen Reports: {complaint.related_report_count}</span>
               )}
@@ -265,7 +265,7 @@ export default function AdminComplaintDetails() {
                         <div className="font-semibold text-[14px] text-indigo-900">#{related.id.substring(0, 8)}</div>
                         <div className="text-[13px] text-indigo-700 font-medium">{related.category}</div>
                         <div className="text-[12px] text-indigo-600/80">
-                          {related.created_at ? new Date(related.created_at).toLocaleString() : (related.date ? new Date(related.date).toLocaleString() : "Unknown")}
+                          {related.created_at ? formatDateIST(related.created_at) : (related.date ? formatDateIST(related.date) : "Unknown")}
                         </div>
                       </div>
                       <Link
@@ -316,7 +316,7 @@ export default function AdminComplaintDetails() {
                           </span>
                         )}
                       </h4>
-                      <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}</p>
+                      <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? formatDateIST(complaint.created_at) : (complaint.date ? formatDateIST(complaint.date) : "Unknown")}</p>
                     </div>
                   </div>
                   
@@ -395,7 +395,7 @@ export default function AdminComplaintDetails() {
                           </h4>
                           {isReached && historyEntry && (
                             <p className="mt-1.5 text-[13px] font-medium text-slate-500">
-                              {new Date(historyEntry.changed_at).toLocaleString()}
+                              {formatDateIST(historyEntry.changed_at)}
                             </p>
                           )}
                         </div>

@@ -4,6 +4,7 @@ import { ArrowLeft, BrainCircuit, AlertTriangle, Clock3, CheckCircle2, Copy } fr
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { getComplaintById, getComplaints } from "../services/complaintService";
 import { getImageUrl } from "../services/api";
+import { formatDateIST } from "../utils/dateUtils";
 
 export default function ComplaintDetails() {
   const { id } = useParams();
@@ -59,7 +60,7 @@ export default function ComplaintDetails() {
               )}
             </div>
             <p className="text-[15px] font-medium text-slate-500 mt-2">
-              Reported on {complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}
+              Reported on {complaint.created_at ? formatDateIST(complaint.created_at) : (complaint.date ? formatDateIST(complaint.date) : "Unknown")}
             </p>
             {complaint.is_primary !== false && complaint.related_report_count > 1 && (
               <p className="text-[14px] font-bold text-indigo-600 mt-1">
@@ -112,15 +113,11 @@ export default function ComplaintDetails() {
               <div>
                 <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wider mb-3">Attached Evidence</h3>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-2 overflow-hidden shadow-inner flex items-center justify-center min-h-[200px]">
-                  {complaint.image_url ? (
-                    <img 
-                      src={getImageUrl(complaint.image_url)} 
-                      alt="Complaint Evidence" 
-                      className="max-h-[400px] w-full object-contain rounded-xl"
-                    />
-                  ) : (
-                    <span className="text-[15px] text-slate-700 font-medium p-4">{complaint.imageName}</span>
-                  )}
+                  <img 
+                    src={getImageUrl(complaint.image_url || `/uploads/complaints/${complaint.imageName}`)} 
+                    alt="Complaint Evidence" 
+                    className="max-h-[400px] w-full object-contain rounded-xl"
+                  />
                 </div>
               </div>
             )}
@@ -261,7 +258,7 @@ export default function ComplaintDetails() {
                   <div className="flex items-center justify-between border-b border-blue-50 pb-3">
                     <span className="text-[14px] font-medium text-slate-600">Analysis Time</span>
                     <span className="text-[14px] font-semibold text-slate-700">
-                      {(complaint.ai_prediction || complaint.aiPrediction).analyzed_at ? new Date((complaint.ai_prediction || complaint.aiPrediction).analyzed_at).toLocaleString() : "N/A"}
+                      {(complaint.ai_prediction || complaint.aiPrediction).analyzed_at ? formatDateIST((complaint.ai_prediction || complaint.aiPrediction).analyzed_at) : "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between border-b border-blue-50 pb-3">
@@ -327,7 +324,7 @@ export default function ComplaintDetails() {
                           </span>
                         )}
                       </h4>
-                      <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? new Date(complaint.created_at).toLocaleString() : (complaint.date ? new Date(complaint.date).toLocaleString() : "Unknown")}</p>
+                      <p className="mt-1.5 text-[13px] font-medium text-slate-500">{complaint.created_at ? formatDateIST(complaint.created_at) : (complaint.date ? formatDateIST(complaint.date) : "Unknown")}</p>
                     </div>
                   </div>
                   
@@ -416,7 +413,7 @@ export default function ComplaintDetails() {
                           </h4>
                           {isReached && historyEntry && (
                             <p className="mt-1.5 text-[13px] font-medium text-slate-500">
-                              {new Date(historyEntry.changed_at).toLocaleString()}
+                              {formatDateIST(historyEntry.changed_at)}
                             </p>
                           )}
                         </div>
@@ -438,7 +435,7 @@ export default function ComplaintDetails() {
                             <p className="text-[13px] font-bold text-slate-900">{note.created_by_name}</p>
                             <p className="text-[11px] font-medium text-indigo-600">{note.department}</p>
                           </div>
-                          <span className="text-[11px] font-medium text-slate-500">{new Date(note.created_at).toLocaleString()}</span>
+                          <span className="text-[11px] font-medium text-slate-500">{formatDateIST(note.created_at)}</span>
                         </div>
                         <p className="text-[14px] text-slate-700 whitespace-pre-wrap">{note.note}</p>
                       </div>
@@ -460,7 +457,7 @@ export default function ComplaintDetails() {
                         />
                         <div className="p-3 bg-slate-50 border-t border-slate-100">
                           <p className="text-[11px] font-semibold text-slate-700 truncate">{evidence.uploaded_by_name}</p>
-                          <p className="text-[10px] text-slate-500">{new Date(evidence.uploaded_at).toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-500">{formatDateIST(evidence.uploaded_at)}</p>
                         </div>
                       </div>
                     ))}
@@ -484,7 +481,7 @@ export default function ComplaintDetails() {
                   <h4 className="text-[15px] font-bold text-slate-800 mb-1">{dup.category}</h4>
                   <p className="text-[13px] text-slate-500 mb-4 line-clamp-2">{dup.description || "No description"}</p>
                   <p className="text-[12px] font-medium text-slate-400 mb-4">
-                    {dup.created_at ? new Date(dup.created_at).toLocaleString() : (dup.date ? new Date(dup.date).toLocaleString() : "Unknown")}
+                    {dup.created_at ? formatDateIST(dup.created_at) : (dup.date ? formatDateIST(dup.date) : "Unknown")}
                   </p>
                   <Link 
                     to={`/complaints/${dup.id}`}

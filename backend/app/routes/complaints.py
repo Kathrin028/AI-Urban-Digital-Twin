@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 import uuid
 from pathlib import Path
@@ -186,7 +186,7 @@ async def analyze_complaint_image(file: UploadFile = File(...), current_user: di
 async def create_complaint(complaint: ComplaintCreate, current_user: dict = Depends(get_current_user)):
     complaint_data = complaint.model_dump()
     complaint_data["user_id"] = str(current_user["id"])
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     complaint_data["status"] = "Pending"
     complaint_data["created_at"] = now
     complaint_data["updated_at"] = now
@@ -268,6 +268,12 @@ async def get_complaint(complaint_id: str, current_user: dict = Depends(get_curr
     elif current_user.get("role") != "admin" and complaint.get("user_id") != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Not authorized to view this complaint")
         
+    user_id_str = complaint.get("user_id")
+    if user_id_str:
+        user_doc = await db_instance.db.users.find_one({"_id": ObjectId(user_id_str)})
+        if user_doc:
+            complaint["user_name"] = user_doc.get("name")
+            
     return serialize_complaint(complaint)
 
 from typing import Optional
@@ -335,6 +341,18 @@ async def get_all_complaints(
 
     cursor = db_instance.db.complaints.find(query).sort("created_at", -1)
     complaints = await cursor.to_list(length=10000)
+    
+    user_ids = list(set([c.get("user_id") for c in complaints if c.get("user_id")]))
+    users = {}
+    if user_ids:
+        user_docs = await db_instance.db.users.find({"_id": {"$in": [ObjectId(uid) for uid in user_ids if ObjectId.is_valid(uid)]}}).to_list(length=10000)
+        users = {str(u["_id"]): u.get("name") for u in user_docs}
+        
+    for c in complaints:
+        uid = c.get("user_id")
+        if uid and uid in users:
+            c["user_name"] = users[uid]
+            
     return [serialize_complaint(c) for c in complaints]
 
 @router.patch("/{complaint_id}/status", response_model=ComplaintResponse)
@@ -372,7 +390,7 @@ async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdat
     if current_status not in valid_transitions or new_status not in valid_transitions[current_status]:
         raise HTTPException(status_code=400, detail=f"Invalid transition from {current_status} to {new_status}")
         
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     new_history_entry = {
         "status": new_status,
         "changed_at": now.isoformat(),
@@ -567,7 +585,7 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
             "image_url": image_url,
             "image_metadata": image_metadata,
             "evidence_verification_status": evidence_status,
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         }
     }
     
@@ -611,7 +629,7 @@ async def assign_complaint(complaint_id: str, assign_data: ComplaintAssign, curr
     if not department.get("is_active"):
         raise HTTPException(status_code=400, detail="Cannot assign to an inactive department")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     update_fields = {
         "assigned_department": str(dept_obj_id),
         "assigned_department_name": department.get("name"),
@@ -649,7 +667,7 @@ async def add_progress_note(complaint_id: str, note_data: ProgressNoteCreate, cu
     new_note = {
         "id": note_id,
         "note": note_data.note.strip(),
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "created_by": str(current_user["id"]),
         "created_by_name": current_user.get("name", "Unknown"),
         "department": current_user.get("department", "Admin")
@@ -720,7 +738,7 @@ async def upload_field_evidence(complaint_id: str, file: UploadFile = File(...),
         "id": evidence_id,
         "file_url": file_url,
         "file_name": file.filename,
-        "uploaded_at": datetime.utcnow(),
+        "uploaded_at": datetime.now(timezone.utc),
         "uploaded_by": str(current_user["id"]),
         "uploaded_by_name": current_user.get("name", "Unknown"),
         "department": current_user.get("department", "Admin")

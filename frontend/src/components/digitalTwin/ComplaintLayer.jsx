@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { formatDateIST, formatDateISTShort } from '../../utils/dateUtils';
 
 const ComplaintLayer = ({ complaints, basePath = '/admin/complaints' }) => {
   const map = useMap();
@@ -37,7 +38,7 @@ const ComplaintLayer = ({ complaints, basePath = '/admin/complaints' }) => {
         })
       });
 
-      const createdDate = pt.date ? new Date(pt.date).toLocaleDateString() : (pt.created_at ? new Date(pt.created_at).toLocaleDateString() : 'Not available');
+      const createdDate = pt.date ? formatDateISTShort(pt.date) : (pt.created_at ? formatDateISTShort(pt.created_at) : 'Not available');
 
       const popupContent = `
         <div style="font-family: sans-serif; min-width: 220px; padding: 4px;">
@@ -68,7 +69,7 @@ const ComplaintLayer = ({ complaints, basePath = '/admin/complaints' }) => {
             
             <div style="display: flex; justify-content: space-between;">
               <span style="color: #64748b; font-weight: 500;">Last Updated</span>
-              <span style="color: #334155; font-weight: 500;">${pt.updated_at ? new Date(pt.updated_at).toLocaleString() : createdDate}</span>
+              <span style="color: #334155; font-weight: 500;">${pt.updated_at ? formatDateIST(pt.updated_at) : createdDate}</span>
             </div>
           </div>
           
