@@ -18,11 +18,11 @@ CLASS_MAPPING = {
 }
 
 # Empirical confidence thresholds based on custom model convergence (1 epoch fine-tuning):
-# - Class 0 (Garbage): 0.10 (samples reach 0.35-0.77)
+# - Class 0 (Garbage): 0.05 (empirically calibrated: captures genuine civic garbage features peaking 0.05-0.10 while rejecting negative controls <0.02)
 # - Class 1 (Pothole): 0.05 (subtle feature representation peaks ~0.05-0.08)
 # - Class 3 (Road Damage): 0.10 (damage features peak ~0.10-0.23)
 CLASS_THRESHOLDS = {
-    0: 0.10,  # Garbage
+    0: 0.05,  # Garbage
     1: 0.05,  # Pothole
     3: 0.10   # Road Damage
 }
