@@ -16,3 +16,4 @@ scikit-learn
 joblib
 Pillow>=10.2.0
 cloudinary
+requests>=2.31.0
