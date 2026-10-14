@@ -90,6 +90,11 @@ function AppRoutes() {
           />
 
           <Route
+            path="/department"
+            element={<Navigate to="/department/dashboard" replace />}
+          />
+
+          <Route
             path="/department/dashboard"
             element={
               <ProtectedRoute allowedRoles={['department']}>

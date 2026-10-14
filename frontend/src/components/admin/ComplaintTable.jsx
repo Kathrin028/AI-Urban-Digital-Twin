@@ -45,17 +45,43 @@ export default function ComplaintTable({ complaints, onStatusChange, basePath = 
           {complaints.map((c) => (
             <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
               <td className="px-8 py-5">
-                <div className="font-bold text-indigo-900 mb-1 uppercase tracking-tight text-[13px]">{c.category.toUpperCase()} ISSUE CLUSTER</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-indigo-900 uppercase tracking-tight text-[13px]">{c.category}</span>
+                  {c.is_duplicate ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      DUPLICATE
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      CLUSTER
+                    </span>
+                  )}
+                </div>
                 <div className="text-[12px] text-slate-500 font-semibold"><span className="text-slate-700">Complaint #{c.id.substring(0, 8).toUpperCase()}</span></div>
                 <div className="text-[11px] text-slate-400 mt-1">Reported: {c.created_at ? formatDateISTShort(c.created_at) : "N/A"}</div>
               </td>
               <td className="px-8 py-5 max-w-[240px]">
                 <div className="font-semibold text-slate-800 text-[13px] truncate">{c.location?.address || "Unknown Location"}</div>
                 <div className="text-[12px] text-slate-500 truncate mt-1" title={c.description}>{c.description || "N/A"}</div>
+                {c.user_name && <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">By: {c.user_name}</div>}
               </td>
               <td className="px-8 py-5">
-                <div className="font-bold text-slate-900">Total: {c.related_report_count || 1}</div>
-                <div className="text-[12px] text-slate-500 mt-0.5">Duplicates: {(c.related_report_count || 1) - 1}</div>
+                {c.is_duplicate ? (
+                  <div>
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Duplicate of:</div>
+                    <Link
+                      to={`${basePath}/${c.duplicate_of}`}
+                      className="text-[12px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      #{c.duplicate_of ? c.duplicate_of.substring(0, 8).toUpperCase() : "Primary"}
+                    </Link>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="font-bold text-slate-900">Total: {c.related_report_count || 1}</div>
+                    <div className="text-[12px] text-slate-500 mt-0.5">Duplicates: {Math.max(0, (c.related_report_count || 1) - 1)}</div>
+                  </div>
+                )}
               </td>
               <td className="px-8 py-5">
                 <div className={`font-bold text-[13px] ${c.priority === 'Critical' || c.priority === 'High' ? 'text-rose-600' : c.priority === 'Medium' ? 'text-amber-600' : 'text-emerald-600'}`}>

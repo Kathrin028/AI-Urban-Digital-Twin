@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routes import health, auth, complaints, admin, users, departments
+from app.routes import health, auth, complaints, admin, users, departments, geocoding
 from fastapi.staticfiles import StaticFiles
 from app.database.connection import connect_to_mongo, close_mongo_connection
 import os
@@ -23,9 +23,10 @@ async def lifespan(app: FastAPI):
     rf_model_path = Path(__file__).parent.parent / "models" / "priority" / "random_forest.pkl"
     priority_predictor.load_model(str(rf_model_path))
     
-    # Seed Departments safely
-    from app.database.seeder import seed_departments
+    # Seed Departments & Demo Users safely
+    from app.database.seeder import seed_departments, seed_demo_users
     await seed_departments()
+    await seed_demo_users()
     
     yield
     await close_mongo_connection()
@@ -52,6 +53,7 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(complaints.router, prefix="/api/complaints", tags=["complaints"])
 app.include_router(departments.router, prefix="/api/admin/departments", tags=["departments"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(geocoding.router, prefix="/api/geocoding", tags=["geocoding"])
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 
 # Mount static files for uploads

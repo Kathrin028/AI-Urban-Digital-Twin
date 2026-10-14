@@ -20,8 +20,7 @@ export default function DepartmentDashboard() {
       setLoading(true);
       setError(null);
       const data = await getComplaints({
-        status: statusFilter,
-        primary_only: true
+        status: statusFilter
       });
       setComplaints(data);
     } catch (err) {

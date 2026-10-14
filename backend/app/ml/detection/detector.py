@@ -3,19 +3,32 @@ import time
 from datetime import datetime
 import json
 from pathlib import Path
+import logging
 import numpy as np
 
-# Class mapping based on user requirements
-# 0 -> Garbage, 1 -> Pothole, 3 -> Road Damage
+logger = logging.getLogger(__name__)
+
+# Class mapping based on model dataset:
+# 0 -> Garbage, 1 -> Pothole, 2 -> Water Leakage (Empty), 3 -> Road Damage
 CLASS_MAPPING = {
     0: "Garbage",
     1: "Pothole",
-    2: "Water Leakage", # Ignored as per rules, but mapped just in case
+    2: "Water Leakage",
     3: "Road Damage"
 }
 
+# Empirical confidence thresholds based on custom model convergence (1 epoch fine-tuning):
+# - Class 0 (Garbage): 0.10 (samples reach 0.35-0.77)
+# - Class 1 (Pothole): 0.05 (subtle feature representation peaks ~0.05-0.08)
+# - Class 3 (Road Damage): 0.10 (damage features peak ~0.10-0.23)
+CLASS_THRESHOLDS = {
+    0: 0.10,  # Garbage
+    1: 0.05,  # Pothole
+    3: 0.10   # Road Damage
+}
+
 def nms(boxes, scores, iou_threshold=0.45):
-    """Lightweight NumPy Non-Maximum Suppression"""
+    """Lightweight NumPy Non-Maximum Suppression (single-class / class-agnostic)."""
     if len(boxes) == 0:
         return []
 
@@ -23,6 +36,43 @@ def nms(boxes, scores, iou_threshold=0.45):
     y1 = boxes[:, 1]
     x2 = boxes[:, 2]
     y2 = boxes[:, 3]
+    areas = (x2 - x1) * (y2 - y1)
+
+    order = scores.argsort()[::-1]
+    keep = []
+
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1)
+        h = np.maximum(0.0, yy2 - yy1)
+        inter = w * h
+
+        iou = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+        inds = np.where(iou <= iou_threshold)[0]
+        order = order[inds + 1]
+
+    return keep
+
+def nms_multiclass(boxes, scores, class_ids, iou_threshold=0.45):
+    """Multi-Class Non-Maximum Suppression with class offsets to prevent cross-class suppression."""
+    if len(boxes) == 0:
+        return []
+
+    max_wh = 4096.0
+    c = class_ids[:, None] * max_wh
+    offset_boxes = boxes + c
+
+    x1 = offset_boxes[:, 0]
+    y1 = offset_boxes[:, 1]
+    x2 = offset_boxes[:, 2]
+    y2 = offset_boxes[:, 3]
     areas = (x2 - x1) * (y2 - y1)
 
     order = scores.argsort()[::-1]
@@ -56,6 +106,9 @@ class CivicIssueDetector:
         self.model_name = "YOLOv8n-ONNX"
         self.version = "1.0"
         self.imgsz = 320
+        self.conf_threshold = 0.10
+        self.iou_threshold = 0.45
+        self.class_thresholds = CLASS_THRESHOLDS
 
     def load_model(self, model_path: str):
         try:
@@ -71,21 +124,31 @@ class CivicIssueDetector:
                     sess_options=sess_options,
                     providers=['CPUExecutionProvider']
                 )
-                self.input_name = self.session.get_inputs()[0].name
-                self.output_name = self.session.get_outputs()[0].name
+                input_meta = self.session.get_inputs()[0]
+                output_meta = self.session.get_outputs()[0]
+                self.input_name = input_meta.name
+                self.output_name = output_meta.name
+
+                if len(input_meta.shape) >= 4 and isinstance(input_meta.shape[2], int):
+                    self.imgsz = input_meta.shape[2]
+
                 self.available = True
-                print(f"Loaded YOLO ONNX model from {model_path}")
+                logger.info(
+                    f"Loaded YOLO ONNX model from {model_path} | "
+                    f"Input: {self.input_name} {input_meta.shape} | "
+                    f"Output: {self.output_name} {output_meta.shape} | imgsz={self.imgsz}"
+                )
             else:
-                print(f"Model path does not exist: {model_path}")
+                logger.warning(f"Model path does not exist: {model_path}")
                 self.available = False
         except Exception as e:
-            print(f"Failed to load YOLO ONNX model: {e}")
+            logger.error(f"Failed to load YOLO ONNX model: {e}", exc_info=True)
             self.available = False
 
     def is_available(self) -> bool:
         return self.available
 
-    def predict(self, image_path: str) -> dict:
+    def predict(self, image_path: str, conf_threshold: float = None) -> dict:
         now_str = datetime.utcnow().isoformat() + "Z"
 
         if not self.available:
@@ -95,89 +158,112 @@ class CivicIssueDetector:
             }
 
         try:
-            import numpy as np
             from PIL import Image
 
             start_time = time.time()
 
-            # Preprocessing
+            # 1. Letterbox Preprocessing
             img = Image.open(image_path).convert("RGB")
             orig_w, orig_h = img.size
             scale = min(self.imgsz / orig_w, self.imgsz / orig_h)
-            new_unpad_w, new_unpad_h = int(orig_w * scale), int(orig_h * scale)
+            new_w = max(1, int(round(orig_w * scale)))
+            new_h = max(1, int(round(orig_h * scale)))
 
-            # Avoid error on tiny images
-            new_unpad_w = max(1, new_unpad_w)
-            new_unpad_h = max(1, new_unpad_h)
+            pad_x = (self.imgsz - new_w) // 2
+            pad_y = (self.imgsz - new_h) // 2
 
-            img_resized = img.resize((new_unpad_w, new_unpad_h), Image.Resampling.LANCZOS)
-            dw = (self.imgsz - new_unpad_w) / 2.0
-            dh = (self.imgsz - new_unpad_h) / 2.0
-
+            img_resized = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
             img_padded = Image.new("RGB", (self.imgsz, self.imgsz), (114, 114, 114))
-            img_padded.paste(img_resized, (int(dw), int(dh)))
+            img_padded.paste(img_resized, (pad_x, pad_y))
 
             img_np = np.array(img_padded, dtype=np.float32).transpose(2, 0, 1) / 255.0
             input_tensor = np.expand_dims(img_np, axis=0)
 
-            # Inference
+            # 2. ONNX Model Inference
             outputs = self.session.run([self.output_name], {self.input_name: input_tensor})
-            preds = outputs[0][0].transpose() # Shape: [2100, 8]
+            raw_out = outputs[0]  # Shape: (1, 8, 2100)
+            preds = raw_out[0].transpose()  # Shape: (2100, 8)
 
-            # Parse predictions
-            boxes = preds[:, :4]
-            scores = preds[:, 4:]
+            boxes = preds[:, :4]  # [cx, cy, w, h] in 320x320 space
+            scores = preds[:, 4:]  # Class probabilities [Garbage, Pothole, WaterLeakage, RoadDamage]
 
-            max_scores = np.max(scores, axis=1)
-            class_ids = np.argmax(scores, axis=1)
+            # 3. Local Debugging & Shape Logging
+            raw_max_score = float(np.max(scores))
+            raw_max_cls = int(np.argmax(np.max(scores, axis=0)))
+            per_class_max = {
+                CLASS_MAPPING.get(c, f"Class_{c}"): round(float(np.max(scores[:, c])), 4)
+                for c in range(min(scores.shape[1], 4))
+            }
+            logger.info(
+                f"[YOLO Debug] Image: {Path(image_path).name} ({orig_w}x{orig_h}) | "
+                f"Input tensor: {input_tensor.shape} | Raw output: {raw_out.shape} | "
+                f"Raw max score: {raw_max_score:.4f} ({CLASS_MAPPING.get(raw_max_cls, 'Unknown')}) | "
+                f"Per-class max: {per_class_max}"
+            )
 
-            # Confidence threshold
-            conf_mask = max_scores > 0.02
-            boxes = boxes[conf_mask]
-            max_scores = max_scores[conf_mask]
-            class_ids = class_ids[conf_mask]
+            # 4. Class-specific Confidence Filtering
+            cand_boxes, cand_scores, cand_classes = [], [], []
+            supported_classes = [0, 1, 3]  # Garbage, Pothole, Road Damage (excluding empty class 2)
 
-            # Convert cx, cy, w, h to x1, y1, x2, y2
-            cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
-            x1 = cx - w / 2
-            y1 = cy - h / 2
-            x2 = cx + w / 2
-            y2 = cy + h / 2
+            for cls_id in supported_classes:
+                cls_scores = scores[:, cls_id]
+                th = conf_threshold if conf_threshold is not None else self.class_thresholds.get(cls_id, self.conf_threshold)
+                mask = cls_scores >= th
+                if np.any(mask):
+                    cand_boxes.append(boxes[mask])
+                    cand_scores.append(cls_scores[mask])
+                    cand_classes.append(np.full(np.sum(mask), cls_id, dtype=int))
 
-            # Unpad and scale
-            x1 = (x1 - dw) / scale
-            y1 = (y1 - dh) / scale
-            x2 = (x2 - dw) / scale
-            y2 = (y2 - dh) / scale
+            if not cand_boxes:
+                inference_time_ms = round((time.time() - start_time) * 1000)
+                logger.info(
+                    f"[YOLO Debug] No proposals survived confidence filtering for {Path(image_path).name}. "
+                    f"Thresholds: {self.class_thresholds}. Returning null detection."
+                )
+                return {
+                    "available": True,
+                    "category": None,
+                    "confidence": 0,
+                    "bounding_boxes": [],
+                    "model_name": self.model_name,
+                    "model_version": self.version,
+                    "inference_time_ms": inference_time_ms,
+                    "analyzed_at": now_str
+                }
 
-            # Clip
-            x1 = np.clip(x1, 0, orig_w)
-            y1 = np.clip(y1, 0, orig_h)
-            x2 = np.clip(x2, 0, orig_w)
-            y2 = np.clip(y2, 0, orig_h)
+            cand_boxes = np.vstack(cand_boxes)
+            cand_scores = np.concatenate(cand_scores)
+            cand_classes = np.concatenate(cand_classes)
 
+            # 5. Decode Bounding Boxes (cx, cy, w, h -> x1, y1, x2, y2 scaled back to original image)
+            cx, cy, w, h = cand_boxes[:, 0], cand_boxes[:, 1], cand_boxes[:, 2], cand_boxes[:, 3]
+            x1 = np.clip((cx - w / 2 - pad_x) / scale, 0, orig_w)
+            y1 = np.clip((cy - h / 2 - pad_y) / scale, 0, orig_h)
+            x2 = np.clip((cx + w / 2 - pad_x) / scale, 0, orig_w)
+            y2 = np.clip((cy + h / 2 - pad_y) / scale, 0, orig_h)
             final_boxes_xyxy = np.column_stack((x1, y1, x2, y2))
 
-            # Apply NMS
-            keep_indices = nms(final_boxes_xyxy, max_scores, iou_threshold=0.45)
+            # 6. Apply Multi-Class NMS
+            keep_indices = nms_multiclass(final_boxes_xyxy, cand_scores, cand_classes, iou_threshold=self.iou_threshold)
 
-            best_conf = 0
-            best_class_id = None
             bounding_boxes = []
+            best_conf = 0.0
+            best_class_id = None
 
             for idx in keep_indices:
-                cls_id = int(class_ids[idx])
-                conf = float(max_scores[idx])
+                cls_id = int(cand_classes[idx])
+                conf = float(cand_scores[idx])
                 bx1, by1, bx2, by2 = final_boxes_xyxy[idx]
+                category_name = CLASS_MAPPING.get(cls_id, "Unknown")
 
                 bounding_boxes.append({
                     "class_id": cls_id,
-                    "confidence": conf,
-                    "box": [float(bx1), float(by1), float(bx2), float(by2)]
+                    "category": category_name,
+                    "confidence": round(conf, 2),
+                    "box": [round(float(bx1), 2), round(float(by1), 2), round(float(bx2), 2), round(float(by2), 2)]
                 })
 
-                # We care only about classes 0, 1, 3
-                if cls_id in [0, 1, 3] and conf > best_conf:
+                if conf > best_conf:
                     best_conf = conf
                     best_class_id = cls_id
 
@@ -185,6 +271,10 @@ class CivicIssueDetector:
 
             if best_class_id is not None:
                 category = CLASS_MAPPING.get(best_class_id, "Unknown")
+                logger.info(
+                    f"[YOLO Detection] {Path(image_path).name} -> Detected '{category}' "
+                    f"with confidence {round(best_conf, 2)} ({len(bounding_boxes)} box(es)) in {inference_time_ms}ms"
+                )
                 return {
                     "available": True,
                     "category": category,
@@ -208,9 +298,7 @@ class CivicIssueDetector:
                 }
 
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Inference failed: {e}")
+            logger.error(f"Inference failed on {image_path}: {e}", exc_info=True)
             return {
                 "available": False,
                 "reason": f"inference_error: {str(e)}"

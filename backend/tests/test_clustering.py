@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import math
 from app.services.duplicate_detection import calculate_distance, DUPLICATE_RADIUS_METERS
 from app.routes.complaints import calculate_dynamic_priority

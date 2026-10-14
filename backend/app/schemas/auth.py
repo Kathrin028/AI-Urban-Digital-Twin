@@ -23,9 +23,9 @@ class UserResponse(BaseModel):
     city: Optional[str] = None
     role: str
     department: Optional[str] = None
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -46,11 +46,9 @@ async def get_hotspots(current_admin: dict = Depends(get_current_active_admin)):
     latest_time = latest.get("updated_at") if latest else None
     cache_key = f"{total}_{latest_time}"
     
-    # Check if cache is hit inside detect_hotspots
-    cached_clusters = hotspot_clusterer.detect_hotspots([], cache_key)
-    if cached_clusters and hotspot_clusterer._cache["key"] == cache_key and hotspot_clusterer._cache["data"] is not None:
-        if len(hotspot_clusterer._cache["data"]) > 0 or total < 2:
-            return hotspot_clusterer._cache["data"]
+    # Check if cache is hit
+    if hotspot_clusterer._cache["key"] == cache_key and hotspot_clusterer._cache["data"] is not None:
+        return hotspot_clusterer._cache["data"]
 
     # Cache miss or need to re-compute
     cursor = db_instance.db.complaints.find({})

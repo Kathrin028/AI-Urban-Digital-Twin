@@ -21,7 +21,18 @@ async def seed_admin():
     existing_admin = await db.users.find_one({"email": admin_email})
     
     if existing_admin:
-        print("Admin account already exists. Exiting.")
+        print("Admin account already exists. Ensuring password and active status are set...")
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {
+                "password_hash": hash_password("AdminSecurePassword123!"),
+                "is_active": True,
+                "role": "admin"
+            }}
+        )
+        print("Admin account credentials refreshed.")
+        print(f"Email: {admin_email}")
+        print("Password: AdminSecurePassword123!")
     else:
         print("Creating admin account...")
         new_admin = {

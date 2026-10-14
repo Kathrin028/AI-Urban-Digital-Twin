@@ -29,22 +29,28 @@ function AdminDashboard() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [assignmentFilter, setAssignmentFilter] = useState('');
+  const [issueTypeFilter, setIssueTypeFilter] = useState('all');
 
   const refreshData = useCallback(async () => {
     try {
-      const data = await getComplaints({
+      const filters = {
         search,
         status: statusFilter,
         category: categoryFilter,
         priority: priorityFilter,
         assignment: assignmentFilter,
-        primary_only: true
-      });
+      };
+      if (issueTypeFilter === 'primary') {
+        filters.primary_only = true;
+      } else if (issueTypeFilter === 'duplicate') {
+        filters.is_duplicate = true;
+      }
+      const data = await getComplaints(filters);
       setComplaints(data);
     } catch (err) {
       console.error(err);
     }
-  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter]);
+  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter, issueTypeFilter]);
 
   useEffect(() => {
     // Analytics is not filtered by search terms, it is a global snapshot
@@ -57,7 +63,7 @@ function AdminDashboard() {
       refreshData();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter, refreshData]);
+  }, [search, statusFilter, categoryFilter, priorityFilter, assignmentFilter, issueTypeFilter, refreshData]);
 
   const clearFilters = () => {
     setSearch('');
@@ -65,6 +71,7 @@ function AdminDashboard() {
     setCategoryFilter('');
     setPriorityFilter('');
     setAssignmentFilter('');
+    setIssueTypeFilter('all');
   };
 
   return (
@@ -453,16 +460,28 @@ function AdminDashboard() {
             </button>
           </div>
           
-          <div className="grid gap-5 md:grid-cols-5">
+          <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <div>
               <label className="block text-[14px] font-medium text-slate-700 mb-2">Search</label>
-              <input 
-                type="text" 
-                placeholder="Search ID, User, Category..." 
+              <input
+                type="text"
+                placeholder="Search ID, User, Category, Address..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full h-12 border border-slate-300 rounded-xl px-4 text-[15px] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition hover:border-slate-400"
               />
+            </div>
+            <div>
+              <label className="block text-[14px] font-medium text-slate-700 mb-2">Issue Type</label>
+              <select
+                value={issueTypeFilter}
+                onChange={e => setIssueTypeFilter(e.target.value)}
+                className="w-full h-12 border border-slate-300 rounded-xl px-4 text-[15px] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition bg-white hover:border-slate-400 font-medium"
+              >
+                <option value="all">All Complaints</option>
+                <option value="primary">Primary Issues</option>
+                <option value="duplicate">Duplicate Reports</option>
+              </select>
             </div>
             <div>
               <label className="block text-[14px] font-medium text-slate-700 mb-2">Status</label>

@@ -54,15 +54,15 @@ export default function RegisterForm() {
     setIsLoading(true);
     try {
       await register({
-        name: form.name,
-        email: form.email,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
         password: form.password,
-        phone: form.phone,
-        city: form.city,
+        phone: form.phone.trim(),
+        city: form.city.trim(),
         role: form.role,
-        department: form.role === "department" ? form.department : undefined,
+        department: form.role === "department" ? form.department.trim() : undefined,
       });
-      navigate(form.role === "department" ? "/department" : "/citizen", { replace: true });
+      navigate(form.role === "department" ? "/department/dashboard" : "/citizen", { replace: true });
     } catch (err) {
       setError(err.message || "Registration failed. Please try again.");
     } finally {
@@ -164,15 +164,20 @@ export default function RegisterForm() {
         {form.role === "department" && (
           <div>
             <label className="mb-2 block text-[14px] font-medium text-slate-700">
-              Department Name
+              Department
             </label>
-            <input
-              type="text"
-              placeholder="e.g. Sanitation, Roads & Infrastructure"
+            <select
               value={form.department}
               onChange={set("department")}
-              className="h-12 w-full rounded-xl border border-slate-300 px-4 text-[15px] outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 hover:border-slate-400"
-            />
+              className="h-12 w-full rounded-xl border border-slate-300 px-4 text-[15px] outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white hover:border-slate-400"
+            >
+              <option value="">Select Department</option>
+              <option value="Waste Management">Waste Management</option>
+              <option value="Sanitation">Sanitation</option>
+              <option value="Roads & Infrastructure">Roads & Infrastructure</option>
+              <option value="Water Supply">Water Supply</option>
+              <option value="Electricity">Electricity</option>
+            </select>
           </div>
         )}
 

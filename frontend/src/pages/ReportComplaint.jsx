@@ -10,6 +10,7 @@ import AISummary from "../components/report/AISummary";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../contexts/NotificationContext";
 import { checkDuplicateComplaint, saveComplaint, analyzeComplaintImage, uploadComplaintImage } from "../services/complaintService";
+import { searchLocations } from "../services/geocodingService";
 import { AlertTriangle } from "lucide-react";
 
 export default function ReportComplaint() {
@@ -78,7 +79,6 @@ export default function ReportComplaint() {
     
     // Check if the selected category is even supported by the model
     if (!SUPPORTED_AI_CATEGORIES.includes(category)) {
-      setAiState(prev => ({ ...prev, status: "unsupported_category" }));
       setEvidenceWarning(null);
       setIgnoreEvidenceWarning(false);
       return;
@@ -120,8 +120,8 @@ export default function ReportComplaint() {
     if (aiState.status === "error") {
       return { error: true, message: "AI verification is temporarily unavailable. Please try again." };
     }
-    if (aiState.status === "unsupported_category") {
-      return { unsupported: true, message: `Automatic image verification is not currently available for ${category}. Your image will still be submitted for review.` };
+    if (category && !SUPPORTED_AI_CATEGORIES.includes(category)) {
+      return { unsupported: true, message: `AI image verification is currently unavailable for ${category}. Your complaint will still be submitted and reviewed by the appropriate department.` };
     }
     if (aiState.result && aiState.status !== "analyzing") {
       return {
@@ -134,21 +134,22 @@ export default function ReportComplaint() {
     return null; // Fallback to "Waiting for Input" if no image
   }, [aiState, category]);
 
-  const performSubmission = async (evidenceStatus = "NOT_ANALYZED") => {
+  const performSubmission = async (evidenceStatus = "NOT_ANALYZED", targetLocation = null) => {
+    const loc = targetLocation || location;
     const newComplaint = {
       userId: user?.id || "guest",
       category,
       description,
       location: {
-        address: location.address,
-        latitude: parseFloat(location.latitude),
-        longitude: parseFloat(location.longitude)
+        address: loc.address || "",
+        latitude: parseFloat(loc.latitude),
+        longitude: parseFloat(loc.longitude)
       },
       imageName: image ? image.name : null,
-      aiPrediction: (aiState.result && aiState.status !== "error" && aiState.status !== "unsupported_category") 
-        ? aiState.result 
-        : (aiState.status === "unsupported_category" 
-            ? { available: false, reason: "AI image verification is not currently available for this category" }
+      aiPrediction: (aiState.result && aiState.status !== "error" && SUPPORTED_AI_CATEGORIES.includes(category))
+        ? aiState.result
+        : (!SUPPORTED_AI_CATEGORIES.includes(category)
+            ? { available: false, reason: `AI image verification is currently unavailable for ${category}` }
             : null),
       evidence_verification_status: evidenceStatus
     };
@@ -182,32 +183,6 @@ export default function ReportComplaint() {
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
-    console.log("SUBMIT DEBUG", {
-        category,
-        location,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
-        address: location?.address
-    });
-
-    const lat = Number.parseFloat(location?.latitude);
-    const lng = Number.parseFloat(location?.longitude);
-
-    console.log("SUBMIT DEBUG NUMBERS", {
-      lat,
-      lng,
-      isFiniteLat: Number.isFinite(lat),
-      isFiniteLng: Number.isFinite(lng)
-    });
-
-    const hasValidLocation =
-      Number.isFinite(lat) &&
-      Number.isFinite(lng) &&
-      lat >= -90 &&
-      lat <= 90 &&
-      lng >= -180 &&
-      lng <= 180;
-
     if (!image) {
       addNotification('warning', "Please upload an image.");
       return;
@@ -218,13 +193,55 @@ export default function ReportComplaint() {
       return;
     }
 
+    let lat = Number.parseFloat(location?.latitude);
+    let lng = Number.parseFloat(location?.longitude);
+    const enteredAddress = (location?.address || "").trim();
+
+    // If coordinates are missing but an address/landmark was entered, resolve automatically!
+    if ((Number.isNaN(lat) || Number.isNaN(lng)) && enteredAddress) {
+      setIsSubmitting(true);
+      try {
+        const matches = await searchLocations(enteredAddress, 1);
+        if (matches && matches.length > 0) {
+          lat = Number.parseFloat(matches[0].latitude);
+          lng = Number.parseFloat(matches[0].longitude);
+          const resolvedLoc = {
+            address: enteredAddress,
+            latitude: lat.toFixed(6),
+            longitude: lng.toFixed(6)
+          };
+          setLocation(resolvedLoc);
+        } else {
+          setIsSubmitting(false);
+          addNotification(
+            'warning',
+            `Could not find coordinates for "${enteredAddress}". Please select a suggestion from the dropdown or click on the map to set your location.`
+          );
+          return;
+        }
+      } catch (err) {
+        console.error("Auto geocode on submit failed:", err);
+        setIsSubmitting(false);
+        addNotification('warning', "Unable to locate address automatically. Please pick a location on the map.");
+        return;
+      }
+    }
+
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      addNotification('warning', "Please provide missing coordinates.");
+      addNotification('warning', "Please enter an address, search a landmark, or click on the map to set your location.");
       return;
     }
 
+    const hasValidLocation =
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180;
+
     if (!hasValidLocation) {
-      addNotification('warning', "Invalid coordinates (Latitude: -90 to 90, Longitude: -180 to 180).");
+      addNotification('warning', "Invalid coordinates (Latitude: -90 to 90, Longitude: -180 to 180). Please adjust on the map.");
       return;
     }
     
@@ -262,11 +279,17 @@ export default function ReportComplaint() {
 
       const finalEvidenceStatus = evidenceWarning 
         ? evidenceWarning.type 
-        : (aiState.status === "unsupported_category" || aiState.status === "no_detection"
+        : (!SUPPORTED_AI_CATEGORIES.includes(category) || aiState.status === "no_detection"
             ? "UNVERIFIED" 
             : (aiState.result ? "VERIFIED" : "NOT_ANALYZED"));
 
-      await performSubmission(finalEvidenceStatus);
+      const finalLocation = {
+        address: enteredAddress,
+        latitude: lat,
+        longitude: lng
+      };
+
+      await performSubmission(finalEvidenceStatus, finalLocation);
     } finally {
       setIsSubmitting(false);
     }

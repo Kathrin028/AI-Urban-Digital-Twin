@@ -82,6 +82,81 @@ def serialize_complaint(complaint: dict) -> dict:
         
     return complaint
 
+async def get_user_department_identifiers(current_user: dict):
+    """
+    Returns a tuple of (dept_id_str, dept_name, valid_identifiers_set, query_condition)
+    for a department user. Handles case-insensitive names, ObjectIds, IDs, and whitespace.
+    """
+    import re
+    dept_val = str(current_user.get("department") or "").strip()
+    if not dept_val:
+        return None, None, set(), {"assigned_department": "not-found"}
+
+    # Try lookup by ObjectId if dept_val is a valid ObjectId
+    dept_doc = None
+    if ObjectId.is_valid(dept_val):
+        dept_doc = await db_instance.db.departments.find_one({"_id": ObjectId(dept_val)})
+
+    # If not found by ID, try case-insensitive regex by name or code
+    if not dept_doc:
+        dept_doc = await db_instance.db.departments.find_one({
+            "$or": [
+                {"name": {"$regex": f"^{re.escape(dept_val)}$", "$options": "i"}},
+                {"code": {"$regex": f"^{re.escape(dept_val)}$", "$options": "i"}}
+            ]
+        })
+
+    valid_identifiers = set()
+    valid_identifiers.add(dept_val)
+    valid_identifiers.add(dept_val.lower())
+
+    dept_id_str = None
+    dept_name = None
+    or_clauses = [
+        {"assigned_department": dept_val},
+        {"assigned_department": {"$regex": f"^{re.escape(dept_val)}$", "$options": "i"}},
+        {"assigned_department_name": {"$regex": f"^{re.escape(dept_val)}$", "$options": "i"}}
+    ]
+
+    if dept_doc:
+        dept_id_str = str(dept_doc["_id"])
+        dept_name = dept_doc.get("name", dept_val)
+        valid_identifiers.add(dept_id_str)
+        valid_identifiers.add(dept_name)
+        valid_identifiers.add(dept_name.lower())
+
+        or_clauses.extend([
+            {"assigned_department": dept_id_str},
+            {"assigned_department": dept_doc["_id"]},
+            {"assigned_department": {"$regex": f"^{re.escape(dept_name)}$", "$options": "i"}},
+            {"assigned_department_name": {"$regex": f"^{re.escape(dept_name)}$", "$options": "i"}}
+        ])
+
+    query_condition = {"$or": or_clauses}
+    return dept_id_str or dept_val, dept_name or dept_val, valid_identifiers, query_condition
+
+
+def is_complaint_assigned_to_user(complaint: dict, valid_identifiers: set) -> bool:
+    """
+    Checks if a complaint is assigned to the authenticated department user
+    by comparing against all canonical identifiers (IDs, names, case-insensitive).
+    """
+    if not complaint:
+        return False
+
+    c_dept = str(complaint.get("assigned_department") or "").strip().lower()
+    c_name = str(complaint.get("assigned_department_name") or "").strip().lower()
+
+    for ident in valid_identifiers:
+        ident_lower = str(ident).strip().lower()
+        if ident_lower and (c_dept == ident_lower or c_name == ident_lower):
+            return True
+
+    return False
+
+
+
+
 @router.post("/check-duplicate")
 async def check_duplicate(request: DuplicateCheckRequest, current_user: dict = Depends(get_current_user)):
     return await check_similar_complaints(
@@ -253,23 +328,14 @@ async def get_complaint(complaint_id: str, current_user: dict = Depends(get_curr
         raise HTTPException(status_code=404, detail="Complaint not found")
         
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
-            raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
-        
-    if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
+        _, _, valid_idents, _ = await get_user_department_identifiers(current_user)
+        if not is_complaint_assigned_to_user(complaint, valid_idents):
             raise HTTPException(status_code=403, detail="Not authorized to view this complaint")
     elif current_user.get("role") != "admin" and complaint.get("user_id") != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Not authorized to view this complaint")
         
     user_id_str = complaint.get("user_id")
-    if user_id_str:
+    if user_id_str and ObjectId.is_valid(user_id_str):
         user_doc = await db_instance.db.users.find_one({"_id": ObjectId(user_id_str)})
         if user_doc:
             complaint["user_name"] = user_doc.get("name")
@@ -286,59 +352,67 @@ async def get_all_complaints(
     priority: Optional[str] = None,
     search: Optional[str] = None,
     primary_only: Optional[bool] = False,
+    is_duplicate: Optional[bool] = None,
     duplicate_of: Optional[str] = None,
     assignment: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    and_conditions = []
     
     if status:
-        query["status"] = status
+        and_conditions.append({"status": status})
     if category:
-        query["category"] = category
-    if primary_only:
-        query["is_primary"] = {"$ne": False}
+        and_conditions.append({"category": category})
     if duplicate_of:
-        query["duplicate_of"] = duplicate_of
+        and_conditions.append({"duplicate_of": duplicate_of})
     if assignment == "assigned":
-        query["assigned_department"] = {"$ne": None}
+        and_conditions.append({"assigned_department": {"$ne": None}})
     elif assignment == "unassigned":
-        query["assigned_department"] = None
+        and_conditions.append({"assigned_department": None})
 
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        query["assigned_department"] = dept_id_str
+        _, _, _, dept_query = await get_user_department_identifiers(current_user)
+        and_conditions.append(dept_query)
+        if is_duplicate is not None:
+            and_conditions.append({"is_duplicate": is_duplicate})
+    else:
+        if is_duplicate is not None:
+            and_conditions.append({"is_duplicate": is_duplicate})
+        elif primary_only:
+            # If searching for an exact ID, do not restrict to primary_only
+            clean_search_val = re.sub(r'(?i)^complaint\s*#?\s*', '', search or '').strip().lstrip('#')
+            if not (clean_search_val and ObjectId.is_valid(clean_search_val)):
+                and_conditions.append({"is_primary": {"$ne": False}})
+
     if priority:
-        # Since priority might be in 'aiPrediction.priority' or 'priority', we can check both
-        query["$or"] = [
-            {"priority": priority},
-            {"aiPrediction.priority": priority}
-        ]
+        and_conditions.append({
+            "$or": [
+                {"priority": priority},
+                {"aiPrediction.priority": priority}
+            ]
+        })
         
     if search:
         # Strip "complaint #" or "#" for natural id searching
         clean_search = re.sub(r'(?i)^complaint\s*#?\s*', '', search).strip()
         clean_search = clean_search.lstrip('#').strip()
         escaped_search = re.escape(clean_search)
-        regex_pattern = {"$regex": escaped_search, "$options": "i"}
+        regex_compiled = re.compile(escaped_search, re.IGNORECASE)
         
         search_conditions = [
-            {"category": regex_pattern},
-            {"description": regex_pattern},
-            {"user_id": regex_pattern},
+            {"category": regex_compiled},
+            {"description": regex_compiled},
+            {"user_id": regex_compiled},
+            {"location.address": regex_compiled},
             {"$expr": {"$regexMatch": {"input": {"$toString": "$_id"}, "regex": escaped_search, "options": "i"}}}
         ]
         
         if ObjectId.is_valid(clean_search):
             search_conditions.append({"_id": ObjectId(clean_search)})
             
-        if "$or" in query:
-            query = {"$and": [query, {"$or": search_conditions}]}
-        else:
-            query["$or"] = search_conditions
+        and_conditions.append({"$or": search_conditions})
 
+    query = {"$and": and_conditions} if and_conditions else {}
     cursor = db_instance.db.complaints.find(query).sort("created_at", -1)
     complaints = await cursor.to_list(length=10000)
     
@@ -369,10 +443,8 @@ async def update_complaint_status(complaint_id: str, update_data: ComplaintUpdat
         raise HTTPException(status_code=404, detail="Complaint not found")
         
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
+        _, _, valid_idents, _ = await get_user_department_identifiers(current_user)
+        if not is_complaint_assigned_to_user(complaint, valid_idents):
             raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
         
     current_status = complaint.get("status", "Pending")
@@ -423,13 +495,10 @@ async def upload_complaint_image(complaint_id: str, file: UploadFile = File(...)
         raise HTTPException(status_code=404, detail="Complaint not found")
         
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
+        _, _, valid_idents, _ = await get_user_department_identifiers(current_user)
+        if not is_complaint_assigned_to_user(complaint, valid_idents):
             raise HTTPException(status_code=403, detail="Not authorized to update this complaint")
-        
-    if current_user["role"] != "admin" and complaint["user_id"] != str(current_user["id"]):
+    elif current_user.get("role") != "admin" and complaint.get("user_id") != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Not authorized to update this complaint's evidence")
 
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
@@ -643,6 +712,12 @@ async def assign_complaint(complaint_id: str, assign_data: ComplaintAssign, curr
         {"$set": update_fields}
     )
 
+    # Synchronize assignment across any duplicate complaints belonging to this cluster
+    await db_instance.db.complaints.update_many(
+        {"duplicate_of": str(complaint_obj_id)},
+        {"$set": update_fields}
+    )
+
     updated_complaint = await db_instance.db.complaints.find_one({"_id": complaint_obj_id})
     return serialize_complaint(updated_complaint)
 
@@ -657,10 +732,8 @@ async def add_progress_note(complaint_id: str, note_data: ProgressNoteCreate, cu
         raise HTTPException(status_code=404, detail="Complaint not found")
         
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
+        _, _, valid_idents, _ = await get_user_department_identifiers(current_user)
+        if not is_complaint_assigned_to_user(complaint, valid_idents):
             raise HTTPException(status_code=403, detail="Not authorized to add notes to this complaint")
             
     note_id = str(uuid.uuid4())
@@ -690,10 +763,8 @@ async def upload_field_evidence(complaint_id: str, file: UploadFile = File(...),
         raise HTTPException(status_code=404, detail="Complaint not found")
         
     if current_user.get("role") == "department":
-        dept_name = current_user.get("department")
-        dept = await db_instance.db.departments.find_one({"name": dept_name})
-        dept_id_str = str(dept["_id"]) if dept else "not-found"
-        if complaint.get("assigned_department") != dept_id_str:
+        _, _, valid_idents, _ = await get_user_department_identifiers(current_user)
+        if not is_complaint_assigned_to_user(complaint, valid_idents):
             raise HTTPException(status_code=403, detail="Not authorized to upload evidence to this complaint")
             
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]

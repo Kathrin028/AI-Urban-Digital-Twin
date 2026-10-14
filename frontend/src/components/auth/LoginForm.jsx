@@ -103,21 +103,6 @@ export default function LoginForm() {
 
       </form>
 
-      <div className="mt-8 rounded-xl bg-blue-50/80 p-5 text-[14px] text-blue-700 space-y-2 border border-blue-100">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold">Citizen Demo:</span>
-          <span className="font-mono bg-blue-100 px-2.5 py-1 rounded-md text-[13px] font-medium">demo@urbanmind.ai</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="font-semibold">Admin Demo:</span>
-          <span className="font-mono bg-blue-100 px-2.5 py-1 rounded-md text-[13px] font-medium">admin@urbanmind.ai</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="font-semibold">Dept Demo:</span>
-          <span className="font-mono bg-blue-100 px-2.5 py-1 rounded-md text-[13px] font-medium">dept@urbanmind.ai</span>
-        </div>
-      </div>
-
       <div className="mt-8 border-t border-slate-100 pt-8 text-center">
         <p className="text-[14px] font-medium text-slate-600">
           Don&apos;t have an account?{" "}
