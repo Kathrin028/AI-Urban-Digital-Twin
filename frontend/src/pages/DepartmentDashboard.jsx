@@ -47,7 +47,7 @@ export default function DepartmentDashboard() {
       <div className="mb-8">
         <h1 className="text-[28px] font-bold text-slate-900 tracking-tight mb-2">Department Workspace</h1>
         <p className="text-[15px] font-medium text-slate-500">
-          Welcome back, {user?.name}. You are viewing complaints assigned to <span className="font-bold text-slate-700">{user?.department}</span>.
+          Welcome back, {user?.name}. You are viewing complaints assigned to <span className="font-bold text-slate-700">{user?.department || "your department"}</span>.
         </p>
       </div>
 

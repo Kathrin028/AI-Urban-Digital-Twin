@@ -26,6 +26,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         raise credentials_exception
     if not user.get("is_active", True):
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    if user.get("role") == "department" and not user.get("department"):
+        email = str(user.get("email") or "").lower()
+        name = str(user.get("name") or "").lower()
+        if "waste" in email or "waste" in name or "garbage" in email or "garbage" in name:
+            user["department"] = "Waste Management"
+        elif "sanitation" in email or "sanitation" in name or "drainage" in email:
+            user["department"] = "Sanitation"
+        elif "road" in email or "road" in name or "infra" in email:
+            user["department"] = "Roads & Infrastructure"
+        elif "water" in email or "water" in name:
+            user["department"] = "Water Supply"
+        elif "electric" in email or "electric" in name or "power" in email:
+            user["department"] = "Electricity"
+
     return user
 
 async def get_current_active_admin(current_user: dict = Depends(get_current_user)) -> dict:
