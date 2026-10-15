@@ -28,7 +28,7 @@ CLASS_THRESHOLDS = {
 }
 
 def nms(boxes, scores, iou_threshold=0.45):
-    """Lightweight NumPy Non-Maximum Suppression (single-class / class-agnostic)."""
+    """Lightweight NumPy Non-Maximum Suppression with zero-division and NaN protection."""
     if len(boxes) == 0:
         return []
 
@@ -36,32 +36,45 @@ def nms(boxes, scores, iou_threshold=0.45):
     y1 = boxes[:, 1]
     x2 = boxes[:, 2]
     y2 = boxes[:, 3]
-    areas = (x2 - x1) * (y2 - y1)
+    w = np.maximum(0.0, x2 - x1)
+    h = np.maximum(0.0, y2 - y1)
+    areas = w * h
+
+    valid_areas = (areas > 1e-4) & ~np.isnan(areas)
+    if not np.any(valid_areas):
+        return []
 
     order = scores.argsort()[::-1]
     keep = []
 
     while order.size > 0:
         i = order[0]
+        if not valid_areas[i]:
+            order = order[1:]
+            continue
         keep.append(i)
+        if order.size == 1:
+            break
 
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
         xx2 = np.minimum(x2[i], x2[order[1:]])
         yy2 = np.minimum(y2[i], y2[order[1:]])
 
-        w = np.maximum(0.0, xx2 - xx1)
-        h = np.maximum(0.0, yy2 - yy1)
-        inter = w * h
+        inter_w = np.maximum(0.0, xx2 - xx1)
+        inter_h = np.maximum(0.0, yy2 - yy1)
+        inter = inter_w * inter_h
 
-        iou = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+        denom = areas[i] + areas[order[1:]] - inter
+        iou = np.where(denom > 1e-6, inter / np.maximum(1e-6, denom), 0.0)
+        iou = np.nan_to_num(iou, nan=0.0, posinf=0.0, neginf=0.0)
         inds = np.where(iou <= iou_threshold)[0]
         order = order[inds + 1]
 
     return keep
 
 def nms_multiclass(boxes, scores, class_ids, iou_threshold=0.45):
-    """Multi-Class Non-Maximum Suppression with class offsets to prevent cross-class suppression."""
+    """Multi-Class Non-Maximum Suppression with class offsets and zero-division/NaN protection."""
     if len(boxes) == 0:
         return []
 
@@ -73,25 +86,38 @@ def nms_multiclass(boxes, scores, class_ids, iou_threshold=0.45):
     y1 = offset_boxes[:, 1]
     x2 = offset_boxes[:, 2]
     y2 = offset_boxes[:, 3]
-    areas = (x2 - x1) * (y2 - y1)
+    w = np.maximum(0.0, x2 - x1)
+    h = np.maximum(0.0, y2 - y1)
+    areas = w * h
+
+    valid_areas = (areas > 1e-4) & ~np.isnan(areas)
+    if not np.any(valid_areas):
+        return []
 
     order = scores.argsort()[::-1]
     keep = []
 
     while order.size > 0:
         i = order[0]
+        if not valid_areas[i]:
+            order = order[1:]
+            continue
         keep.append(i)
+        if order.size == 1:
+            break
 
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
         xx2 = np.minimum(x2[i], x2[order[1:]])
         yy2 = np.minimum(y2[i], y2[order[1:]])
 
-        w = np.maximum(0.0, xx2 - xx1)
-        h = np.maximum(0.0, yy2 - yy1)
-        inter = w * h
+        inter_w = np.maximum(0.0, xx2 - xx1)
+        inter_h = np.maximum(0.0, yy2 - yy1)
+        inter = inter_w * inter_h
 
-        iou = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+        denom = areas[i] + areas[order[1:]] - inter
+        iou = np.where(denom > 1e-6, inter / np.maximum(1e-6, denom), 0.0)
+        iou = np.nan_to_num(iou, nan=0.0, posinf=0.0, neginf=0.0)
         inds = np.where(iou <= iou_threshold)[0]
         order = order[inds + 1]
 
@@ -165,6 +191,29 @@ class CivicIssueDetector:
             # 1. Letterbox Preprocessing
             img = Image.open(image_path).convert("RGB")
             orig_w, orig_h = img.size
+
+            # Information entropy / variance floor: reject featureless blank/uniform canvas (solid color, covered lens, unexposed sensor)
+            img_gray = np.array(img.convert("L"), dtype=np.float32)
+            img_std = float(np.std(img_gray))
+            img_ptp = float(np.ptp(img_gray))
+            if img_std < 2.0 or img_ptp < 8.0:
+                inference_time_ms = round((time.time() - start_time) * 1000)
+                logger.info(
+                    f"[YOLO Debug] Image {Path(image_path).name} is featureless/blank "
+                    f"(std={img_std:.2f}, dynamic_range={img_ptp:.1f}). "
+                    f"No physical civic defects can exist in a uniform canvas. Returning null detection."
+                )
+                return {
+                    "available": True,
+                    "category": None,
+                    "confidence": 0,
+                    "bounding_boxes": [],
+                    "model_name": self.model_name,
+                    "model_version": self.version,
+                    "inference_time_ms": inference_time_ms,
+                    "analyzed_at": now_str
+                }
+
             scale = min(self.imgsz / orig_w, self.imgsz / orig_h)
             new_w = max(1, int(round(orig_w * scale)))
             new_h = max(1, int(round(orig_h * scale)))
@@ -235,21 +284,90 @@ class CivicIssueDetector:
             cand_scores = np.concatenate(cand_scores)
             cand_classes = np.concatenate(cand_classes)
 
-            # 5. Decode Bounding Boxes (cx, cy, w, h -> x1, y1, x2, y2 scaled back to original image)
+            # 5. Dynamic Letterbox Padding Filtering using actual calculated preprocessing bounds
             cx, cy, w, h = cand_boxes[:, 0], cand_boxes[:, 1], cand_boxes[:, 2], cand_boxes[:, 3]
+            in_active_image = (cx >= pad_x) & (cx <= (pad_x + new_w)) & (cy >= pad_y) & (cy <= (pad_y + new_h))
+            if not np.any(in_active_image):
+                inference_time_ms = round((time.time() - start_time) * 1000)
+                logger.info(
+                    f"[YOLO Debug] All proposals for {Path(image_path).name} were in letterbox padding. "
+                    f"Returning null detection."
+                )
+                return {
+                    "available": True,
+                    "category": None,
+                    "confidence": 0,
+                    "bounding_boxes": [],
+                    "model_name": self.model_name,
+                    "model_version": self.version,
+                    "inference_time_ms": inference_time_ms,
+                    "analyzed_at": now_str
+                }
+
+            cand_boxes = cand_boxes[in_active_image]
+            cand_scores = cand_scores[in_active_image]
+            cand_classes = cand_classes[in_active_image]
+            cx, cy, w, h = cand_boxes[:, 0], cand_boxes[:, 1], cand_boxes[:, 2], cand_boxes[:, 3]
+
+            # 6. Decode Bounding Boxes (cx, cy, w, h -> x1, y1, x2, y2 scaled back to original image)
             x1 = np.clip((cx - w / 2 - pad_x) / scale, 0, orig_w)
             y1 = np.clip((cy - h / 2 - pad_y) / scale, 0, orig_h)
             x2 = np.clip((cx + w / 2 - pad_x) / scale, 0, orig_w)
             y2 = np.clip((cy + h / 2 - pad_y) / scale, 0, orig_h)
-            final_boxes_xyxy = np.column_stack((x1, y1, x2, y2))
 
-            # 6. Apply Multi-Class NMS
+            # 7. Reject Degenerate / Invalid Bounding Boxes (zero area, negative, sub-pixel, NaN, or flat featureless patches)
+            bw = x2 - x1
+            bh = y2 - y1
+            valid_boxes = (bw >= 4.0) & (bh >= 4.0) & ~np.isnan(bw) & ~np.isnan(bh)
+
+            # Eliminate flat/uniform candidate boxes (e.g. solid white watermark or blank patch with std < 1.0)
+            if np.any(valid_boxes):
+                for idx_box in np.where(valid_boxes)[0]:
+                    bx1, by1 = max(0, int(round(x1[idx_box]))), max(0, int(round(y1[idx_box])))
+                    bx2, by2 = min(orig_w, int(round(x2[idx_box]))), min(orig_h, int(round(y2[idx_box])))
+                    patch = img_gray[by1:by2, bx1:bx2]
+                    if patch.size > 0 and float(np.std(patch)) < 1.0:
+                        valid_boxes[idx_box] = False
+
+            if not np.any(valid_boxes):
+                inference_time_ms = round((time.time() - start_time) * 1000)
+                logger.info(
+                    f"[YOLO Debug] All decoded boxes for {Path(image_path).name} were degenerate (<4px, NaN, or zero-variance patch). "
+                    f"Returning null detection."
+                )
+                return {
+                    "available": True,
+                    "category": None,
+                    "confidence": 0,
+                    "bounding_boxes": [],
+                    "model_name": self.model_name,
+                    "model_version": self.version,
+                    "inference_time_ms": inference_time_ms,
+                    "analyzed_at": now_str
+                }
+
+            cand_boxes = cand_boxes[valid_boxes]
+            cand_scores = cand_scores[valid_boxes]
+            cand_classes = cand_classes[valid_boxes]
+            final_boxes_xyxy = np.column_stack((x1[valid_boxes], y1[valid_boxes], x2[valid_boxes], y2[valid_boxes]))
+
+            # 8. Apply Safe Multi-Class NMS
             keep_indices = nms_multiclass(final_boxes_xyxy, cand_scores, cand_classes, iou_threshold=self.iou_threshold)
 
-            bounding_boxes = []
-            best_conf = 0.0
-            best_class_id = None
+            if not keep_indices:
+                inference_time_ms = round((time.time() - start_time) * 1000)
+                return {
+                    "available": True,
+                    "category": None,
+                    "confidence": 0,
+                    "bounding_boxes": [],
+                    "model_name": self.model_name,
+                    "model_version": self.version,
+                    "inference_time_ms": inference_time_ms,
+                    "analyzed_at": now_str
+                }
 
+            bounding_boxes = []
             for idx in keep_indices:
                 cls_id = int(cand_classes[idx])
                 conf = float(cand_scores[idx])
@@ -263,9 +381,17 @@ class CivicIssueDetector:
                     "box": [round(float(bx1), 2), round(float(by1), 2), round(float(bx2), 2), round(float(by2), 2)]
                 })
 
-                if conf > best_conf:
-                    best_conf = conf
-                    best_class_id = cls_id
+            # 9. Calibrated Category Decision:
+            # Compare valid detections across classes using normalized confidence ratios relative to calibrated thresholds
+            # ratio = confidence / class_threshold
+            norm_ratios = [
+                float(cand_scores[idx]) / self.class_thresholds.get(int(cand_classes[idx]), self.conf_threshold)
+                for idx in keep_indices
+            ]
+            best_pos = int(np.argmax(norm_ratios))
+            best_idx = keep_indices[best_pos]
+            best_class_id = int(cand_classes[best_idx])
+            best_conf = float(cand_scores[best_idx])
 
             inference_time_ms = round((time.time() - start_time) * 1000)
 
